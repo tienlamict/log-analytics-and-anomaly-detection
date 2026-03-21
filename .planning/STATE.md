@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 01-foundation-and-ingestion/01-01-PLAN.md
-last_updated: "2026-03-21T07:59:19.541Z"
+stopped_at: Completed 01-foundation-and-ingestion/01-02-PLAN.md
+last_updated: "2026-03-21T08:02:01.593Z"
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 5
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -25,13 +25,13 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 ## Current Status
 
-**Phase:** 01 — foundation-and-ingestion (Plan 01 complete)
+**Phase:** 01 — foundation-and-ingestion (Plan 02 complete)
 **Milestone:** v1.0.0
-**Overall progress:** [██░░░░░░░░] 20% — 1/5 plans complete
+**Overall progress:** [████░░░░░░] 40% — 2/5 plans complete
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | Foundation and Ingestion | In Progress (01/01 complete) |
+| 1 | Foundation and Ingestion | In Progress (02/02 complete) |
 | 2 | Detection Engine | Pending |
 | 3 | Storage and Alerting | Pending |
 | 4 | REST API | Pending |
@@ -53,6 +53,8 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 | Module path github.com/log-analytics/server | Placeholder per research recommendation; update to actual repo URL before public push |
 | go 1.22 minimum directive | Eliminates loop variable capture pitfall (Go 1.22+ fix), conservative and broadly compatible |
 | kzap plugin v1.1.2 (not v1.20.7) | kzap has independent module versioning from franz-go core |
+| Mark offset after channel send (not before) | Prevents silent data loss on crash — MarkCommitRecords called only after successful c.out send |
+| Buffered channel capacity 1000 | Decouples Kafka poll rate from downstream processing speed at <1k logs/sec target |
 
 ---
 
@@ -66,9 +68,9 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 ## Session Continuity
 
-**Last session:** 2026-03-21T07:59:19.537Z
-**Stopped at:** Completed 01-foundation-and-ingestion/01-01-PLAN.md
-**Next action:** Execute 01-02-PLAN.md (Kafka consumer)
+**Last session:** 2026-03-21T08:02:01.589Z
+**Stopped at:** Completed 01-foundation-and-ingestion/01-02-PLAN.md
+**Next action:** Phase 01 plans complete — ready for phase transition or next phase
 
 ---
 

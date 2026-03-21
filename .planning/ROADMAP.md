@@ -30,11 +30,11 @@ Build a production-grade, event-driven log analytics and anomaly detection syste
 **Status:** Planned
 **Depends on**: Nothing (first phase)
 **Requirements**: INGEST-01, INGEST-02, INGEST-03, INGEST-04, PARSE-01, PARSE-02, PARSE-03, PARSE-04, OBS-01, OBS-02, TEST-01
-**Plans:** 1/5 plans executed
+**Plans:** 2/5 plans executed
 
 Plans:
 - [x] 01-01-PLAN.md — Module scaffold, domain types, interfaces, config loader
-- [ ] 01-02-PLAN.md — Kafka consumer with franz-go (at-least-once semantics)
+- [x] 01-02-PLAN.md — Kafka consumer with franz-go (at-least-once semantics)
 - [ ] 01-03-PLAN.md — Log parser and level normalisation
 - [ ] 01-04-PLAN.md — Observability skeleton (Prometheus metrics, Zap logging, /metrics endpoint)
 - [ ] 01-05-PLAN.md — Parser unit tests (table-driven, goleak)
@@ -184,7 +184,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation and Ingestion | 1/5 | In Progress|  |
+| 1. Foundation and Ingestion | 2/5 | In Progress|  |
 | 2. Detection Engine | 0/5 | Not started | - |
 | 3. Storage and Alerting | 0/4 | Not started | - |
 | 4. REST API | 0/4 | Not started | - |
