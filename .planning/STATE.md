@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-detection-engine/02-02-PLAN.md
-last_updated: "2026-03-21T15:37:55.593Z"
+stopped_at: Completed 02-detection-engine/02-04-PLAN.md
+last_updated: "2026-03-21T15:44:00.000Z"
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # Project State
@@ -27,12 +27,12 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Phase:** 2
 **Milestone:** v1.0.0
-**Overall progress:** [████████░░] 80% — 8/10 plans complete
+**Overall progress:** [█████████░] 90% — 9/10 plans complete
 
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | Foundation and Ingestion | Complete (05/05 plans done) |
-| 2 | Detection Engine | In Progress (03/04 plans done) |
+| 2 | Detection Engine | Complete (04/04 plans done) |
 | 3 | Storage and Alerting | Pending |
 | 4 | REST API | Pending |
 | 5 | Integration and Hardening | Pending |
@@ -66,6 +66,8 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 | ServiceSilenceRule adapter pattern: Evaluate never fires | Absence-based detection cannot be event-driven; CheckSilence polled by heartbeat goroutine so anomalies flow through same output channel |
 | lastSeen tracks ingest time not entry.Timestamp | Silence detection requires wall-clock elapsed time since last ingestion, not the timestamp in the log event |
 | Only ServiceSilenceRule needs sync.Mutex | It is the only rule where goroutine boundaries cross (pipeline Evaluate vs heartbeat CheckSilence); all others satisfy single-goroutine-caller contract |
+| config imports detection (not vice versa) | detection package has no config dependency so no import cycle; DetectionConfig stays in detection package |
+| No custom Viper DecodeHook for duration strings | Built-in StringToTimeDurationHookFunc handles "5m"->time.Duration; adding custom hook would override the default |
 
 ---
 
@@ -79,9 +81,9 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 ## Session Continuity
 
-**Last session:** 2026-03-21T15:36:46Z
-**Stopped at:** Completed 02-detection-engine/02-03-PLAN.md
-**Next action:** Phase 02 plan 03 complete — ready to execute 02-04 (channel coordination and pipeline wiring)
+**Last session:** 2026-03-21T15:43:53Z
+**Stopped at:** Completed 02-detection-engine/02-04-PLAN.md
+**Next action:** Phase 02 complete — ready to begin Phase 03 (Storage and Alerting)
 
 ---
 

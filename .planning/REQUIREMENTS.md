@@ -30,8 +30,8 @@
 - [x] **DETECT-05**: Rule: **Auth Failure Burst** — fires when auth failure events for a single IP or user exceed threshold in window
 - [x] **DETECT-06**: Rule: **Off-Hours Access** — fires when access to configured sensitive endpoints occurs outside defined business hours
 - [x] **DETECT-07**: Rule: **Service Silence** — fires when a known-active service emits no logs for longer than a configurable threshold (timer-based, not event-driven)
-- [ ] **DETECT-08**: Alert deduplication — per-rule cooldown window prevents repeated alerts for the same ongoing condition
-- [ ] **DETECT-09**: Detection rules and thresholds are configurable via YAML/JSON config file (no code changes required to tune thresholds)
+- [x] **DETECT-08**: Alert deduplication — per-rule cooldown window prevents repeated alerts for the same ongoing condition
+- [x] **DETECT-09**: Detection rules and thresholds are configurable via YAML/JSON config file (no code changes required to tune thresholds)
 - [x] **DETECT-10**: Window state is cleaned up for inactive services to prevent unbounded memory growth
 
 ### Storage
