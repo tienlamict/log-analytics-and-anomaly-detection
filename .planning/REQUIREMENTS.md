@@ -9,10 +9,10 @@
 
 ### Ingestion
 
-- [ ] **INGEST-01**: System consumes log messages from a Kafka topic using a consumer group with at-least-once semantics
+- [x] **INGEST-01**: System consumes log messages from a Kafka topic using a consumer group with at-least-once semantics
 - [ ] **INGEST-02**: Consumer commits offsets only after successful downstream processing (no silent data loss on crash)
 - [ ] **INGEST-03**: Consumer handles graceful shutdown — drains in-flight messages before closing on SIGTERM
-- [ ] **INGEST-04**: Consumer supports configurable initial offset (oldest vs newest) for first-deploy and replay scenarios
+- [x] **INGEST-04**: Consumer supports configurable initial offset (oldest vs newest) for first-deploy and replay scenarios
 
 ### Parsing
 
