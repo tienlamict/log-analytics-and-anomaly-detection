@@ -15,7 +15,7 @@ Build a production-grade, event-driven log analytics and anomaly detection syste
 ## Phases
 
 - [x] **Phase 1: Foundation and Ingestion** - Go module scaffolding, domain types, interfaces, Kafka consumer, log parser, Zap logging, Prometheus metrics skeleton, and parser unit tests. (completed 2026-03-21)
-- [ ] **Phase 2: Detection Engine** - Rule-based anomaly detection with sliding-window state, all seven detection rules, alert deduplication / cooldown, and config-driven thresholds in YAML.
+- [x] **Phase 2: Detection Engine** - Rule-based anomaly detection with sliding-window state, all seven detection rules, alert deduplication / cooldown, and config-driven thresholds in YAML. (completed 2026-03-21)
 - [ ] **Phase 3: Storage and Alerting** - Elasticsearch integration for logs and anomalies (index mappings applied at startup, BulkIndexer), and SMTP email alerting via go-mail with deduplication wired to cooldown state.
 - [ ] **Phase 4: REST API** - chi-based REST API covering log query endpoints, anomaly query endpoints, and health / readiness / metrics endpoints.
 - [ ] **Phase 5: Integration and Hardening** - End-to-end integration tests with testcontainers (real Kafka and Elasticsearch), graceful shutdown hardening, pipeline wiring validation, and setup README.
@@ -59,14 +59,14 @@ Plans:
 **Status:** Planned
 **Depends on**: Phase 1
 **Requirements**: DETECT-01, DETECT-02, DETECT-03, DETECT-04, DETECT-05, DETECT-06, DETECT-07, DETECT-08, DETECT-09, DETECT-10
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 - [x] 02-01-PLAN.md — Detection engine core, sliding window, config types, eviction goroutine
 - [x] 02-02-PLAN.md — Error spike, latency breach, and repeated failure rules
 - [x] 02-03-PLAN.md — Auth burst, off-hours access, and service silence rules
 - [x] 02-04-PLAN.md — YAML config loading, Viper defaults, config.yaml detection section
-- [ ] 02-05-PLAN.md — Detection unit tests (all rules, engine, cooldown, warm-up, eviction)
+- [x] 02-05-PLAN.md — Detection unit tests (all rules, engine, cooldown, warm-up, eviction)
 
 ### Plans (Detail)
 
@@ -193,7 +193,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation and Ingestion | 5/5 | Complete   | 2026-03-21 |
-| 2. Detection Engine | 4/5 | In Progress|  |
+| 2. Detection Engine | 5/5 | Complete   | 2026-03-21 |
 | 3. Storage and Alerting | 0/4 | Not started | - |
 | 4. REST API | 0/4 | Not started | - |
 | 5. Integration and Hardening | 0/3 | Not started | - |

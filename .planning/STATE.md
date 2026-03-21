@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-detection-engine/02-04-PLAN.md
-last_updated: "2026-03-21T15:44:00.000Z"
+stopped_at: Completed 02-detection-engine/02-05-PLAN.md
+last_updated: "2026-03-21T16:11:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 10
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 # Project State
@@ -27,12 +27,12 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Phase:** 2
 **Milestone:** v1.0.0
-**Overall progress:** [█████████░] 90% — 9/10 plans complete
+**Overall progress:** [██████████] 100% — 10/10 plans complete
 
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | Foundation and Ingestion | Complete (05/05 plans done) |
-| 2 | Detection Engine | Complete (04/04 plans done) |
+| 2 | Detection Engine | Complete (05/05 plans done) |
 | 3 | Storage and Alerting | Pending |
 | 4 | REST API | Pending |
 | 5 | Integration and Hardening | Pending |
@@ -59,7 +59,8 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 | goleak.VerifyTestMain not VerifyNone | VerifyNone produces false positives with parallel tests; VerifyTestMain is the correct goroutine leak detection pattern |
 | testutil.ToFloat64 on default registry for Prometheus assertions | Custom prometheus.NewRegistry() causes double-registration panic since metrics are already registered via init() |
 | Consumer ordering invariants via source inspection | strings.Index ordering assertions validate at-least-once semantics (INGEST-02) without requiring a live Kafka broker; full integration deferred to Phase 5 |
-| Single-goroutine-caller contract on DetectorEngine.Evaluate | No mutex needed; pipeline worker is single-goroutine; evictLoop only calls d.Reset(); channel coordination deferred to Plan 02-04 if race detector fires |
+| cooldownMu sync.Mutex added to DetectorEngine (Plan 02-05) | -race flag surfaced data race: Evaluate and silenceWatcher write cooldowns map while evictLoop iterates it; mutex added to all three paths |
+| atomic.Int64 for mock detector counters in tests | evictLoop goroutine calls Reset() concurrently with test assertions; atomic avoids secondary lock hierarchy for simple counters |
 | Non-monotonic scan in slidingWindow.CountWithin | Kafka out-of-order delivery means timestamps are not guaranteed monotonic; full scan safer than short-circuit optimization |
 | Rules in internal/detection/ package (not sub-package) | slidingWindow is unexported; co-location avoids exporting it or using type aliases |
 | Custom latencyWindow struct for LatencyThresholdRule | slidingWindow tracks timestamps only; breach rate math needs bool per entry alongside timestamp |
@@ -81,9 +82,9 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 ## Session Continuity
 
-**Last session:** 2026-03-21T15:43:53Z
-**Stopped at:** Completed 02-detection-engine/02-04-PLAN.md
-**Next action:** Phase 02 complete — ready to begin Phase 03 (Storage and Alerting)
+**Last session:** 2026-03-21T16:11:00Z
+**Stopped at:** Completed 02-detection-engine/02-05-PLAN.md
+**Next action:** Phase 02 complete (all 5 plans done) — ready to begin Phase 03 (Storage and Alerting)
 
 ---
 
