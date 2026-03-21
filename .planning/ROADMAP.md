@@ -56,11 +56,19 @@ Plans:
 ### Phase 2: Detection Engine
 
 **Goal**: Deliver a fully functional rule-based anomaly detection engine that evaluates every incoming log entry against all seven detection rules using sliding-window state, deduplicates repeated alerts via per-rule cooldown, and reads all thresholds from a YAML config file.
-**Status:** Pending
+**Status:** Planned
 **Depends on**: Phase 1
 **Requirements**: DETECT-01, DETECT-02, DETECT-03, DETECT-04, DETECT-05, DETECT-06, DETECT-07, DETECT-08, DETECT-09, DETECT-10
+**Plans:** 5 plans
 
-### Plans
+Plans:
+- [ ] 02-01-PLAN.md — Detection engine core, sliding window, config types, eviction goroutine
+- [ ] 02-02-PLAN.md — Error spike, latency breach, and repeated failure rules
+- [ ] 02-03-PLAN.md — Auth burst, off-hours access, and service silence rules
+- [ ] 02-04-PLAN.md — YAML config loading, Viper defaults, config.yaml detection section
+- [ ] 02-05-PLAN.md — Detection unit tests (all rules, engine, cooldown, warm-up, eviction)
+
+### Plans (Detail)
 
 | # | Plan | Description |
 |---|------|-------------|
@@ -185,7 +193,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation and Ingestion | 5/5 | Complete   | 2026-03-21 |
-| 2. Detection Engine | 0/5 | Not started | - |
+| 2. Detection Engine | 0/5 | Planned | - |
 | 3. Storage and Alerting | 0/4 | Not started | - |
 | 4. REST API | 0/4 | Not started | - |
 | 5. Integration and Hardening | 0/3 | Not started | - |
@@ -196,10 +204,10 @@ Plans:
 
 | Phase | Name | Plans | Requirements | Status |
 |-------|------|-------|--------------|--------|
-| 1 | Foundation and Ingestion | 5 | INGEST-01–04, PARSE-01–04, OBS-01–02, TEST-01 | Planned |
-| 2 | Detection Engine | 5 | DETECT-01–10 | Pending |
-| 3 | Storage and Alerting | 4 | STORE-01–04, ALERT-01–03 | Pending |
-| 4 | REST API | 4 | API-01–06 | Pending |
+| 1 | Foundation and Ingestion | 5 | INGEST-01-04, PARSE-01-04, OBS-01-02, TEST-01 | Planned |
+| 2 | Detection Engine | 5 | DETECT-01-10 | Planned |
+| 3 | Storage and Alerting | 4 | STORE-01-04, ALERT-01-03 | Pending |
+| 4 | REST API | 4 | API-01-06 | Pending |
 | 5 | Integration and Hardening | 3 | TEST-02 | Pending |
 
 **Total:** 5 phases, 21 plans, 34 v1 requirements mapped, 0 unmapped.
