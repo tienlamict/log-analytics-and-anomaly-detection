@@ -16,10 +16,10 @@
 
 ### Parsing
 
-- [ ] **PARSE-01**: Parser normalizes structured JSON log entries into a canonical `LogEntry` schema (`id`, `timestamp`, `level`, `service`, `message`, `fields`)
-- [ ] **PARSE-02**: Parser handles unstructured / plain-text log lines as a fallback (does not drop unparseable messages)
-- [ ] **PARSE-03**: Log level variants are normalized (`err`, `ERR`, `FATAL` → `ERROR`; `warn`, `WARNING` → `WARN`)
-- [ ] **PARSE-04**: Parse errors are logged and metered; pipeline continues processing remaining messages
+- [x] **PARSE-01**: Parser normalizes structured JSON log entries into a canonical `LogEntry` schema (`id`, `timestamp`, `level`, `service`, `message`, `fields`)
+- [x] **PARSE-02**: Parser handles unstructured / plain-text log lines as a fallback (does not drop unparseable messages)
+- [x] **PARSE-03**: Log level variants are normalized (`err`, `ERR`, `FATAL` → `ERROR`; `warn`, `WARNING` → `WARN`)
+- [x] **PARSE-04**: Parse errors are logged and metered; pipeline continues processing remaining messages
 
 ### Detection
 
@@ -63,7 +63,7 @@
 
 ### Testing
 
-- [ ] **TEST-01**: Unit tests for parser, detection rules, and alert deduplication logic (no external dependencies)
+- [x] **TEST-01**: Unit tests for parser, detection rules, and alert deduplication logic (no external dependencies)
 - [ ] **TEST-02**: Integration tests using testcontainers (real Kafka + Elasticsearch) covering the end-to-end pipeline
 
 ---
@@ -114,7 +114,7 @@
 | INGEST-01 – INGEST-04 | Phase 1 | Pending |
 | PARSE-01 – PARSE-04 | Phase 1 | Pending |
 | OBS-01 – OBS-02 | Phase 1 | Pending |
-| TEST-01 | Phase 1 | Pending |
+| TEST-01 | Phase 1 | Complete |
 | DETECT-01 – DETECT-10 | Phase 2 | Pending |
 | STORE-01 – STORE-04 | Phase 3 | Pending |
 | ALERT-01 – ALERT-03 | Phase 3 | Pending |

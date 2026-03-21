@@ -14,7 +14,7 @@ Build a production-grade, event-driven log analytics and anomaly detection syste
 
 ## Phases
 
-- [ ] **Phase 1: Foundation and Ingestion** - Go module scaffolding, domain types, interfaces, Kafka consumer, log parser, Zap logging, Prometheus metrics skeleton, and parser unit tests.
+- [x] **Phase 1: Foundation and Ingestion** - Go module scaffolding, domain types, interfaces, Kafka consumer, log parser, Zap logging, Prometheus metrics skeleton, and parser unit tests. (completed 2026-03-21)
 - [ ] **Phase 2: Detection Engine** - Rule-based anomaly detection with sliding-window state, all seven detection rules, alert deduplication / cooldown, and config-driven thresholds in YAML.
 - [ ] **Phase 3: Storage and Alerting** - Elasticsearch integration for logs and anomalies (index mappings applied at startup, BulkIndexer), and SMTP email alerting via go-mail with deduplication wired to cooldown state.
 - [ ] **Phase 4: REST API** - chi-based REST API covering log query endpoints, anomaly query endpoints, and health / readiness / metrics endpoints.
@@ -30,14 +30,14 @@ Build a production-grade, event-driven log analytics and anomaly detection syste
 **Status:** Planned
 **Depends on**: Nothing (first phase)
 **Requirements**: INGEST-01, INGEST-02, INGEST-03, INGEST-04, PARSE-01, PARSE-02, PARSE-03, PARSE-04, OBS-01, OBS-02, TEST-01
-**Plans:** 3/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 - [x] 01-01-PLAN.md — Module scaffold, domain types, interfaces, config loader
 - [x] 01-02-PLAN.md — Kafka consumer with franz-go (at-least-once semantics)
-- [ ] 01-03-PLAN.md — Log parser and level normalisation
+- [x] 01-03-PLAN.md — Log parser and level normalisation
 - [x] 01-04-PLAN.md — Observability skeleton (Prometheus metrics, Zap logging, /metrics endpoint)
-- [ ] 01-05-PLAN.md — Parser unit tests (table-driven, goleak)
+- [x] 01-05-PLAN.md — Parser unit tests (table-driven, goleak)
 
 ### Success Criteria
 
@@ -184,7 +184,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation and Ingestion | 3/5 | In Progress|  |
+| 1. Foundation and Ingestion | 5/5 | Complete   | 2026-03-21 |
 | 2. Detection Engine | 0/5 | Not started | - |
 | 3. Storage and Alerting | 0/4 | Not started | - |
 | 4. REST API | 0/4 | Not started | - |

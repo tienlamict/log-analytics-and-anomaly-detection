@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 01-foundation-and-ingestion/01-04-PLAN.md
-last_updated: "2026-03-21T08:04:32.781Z"
+stopped_at: Completed 01-foundation-and-ingestion/01-05-PLAN.md
+last_updated: "2026-03-21T14:57:14.042Z"
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 5
 ---
 
 # Project State
@@ -25,13 +25,13 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 ## Current Status
 
-**Phase:** 01 — foundation-and-ingestion (Plan 04 complete)
+**Phase:** 01 — foundation-and-ingestion (Plan 05 complete — phase DONE)
 **Milestone:** v1.0.0
-**Overall progress:** [██████░░░░] 60% — 3/5 plans complete
+**Overall progress:** [██████████] 100% — 5/5 plans complete
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 1 | Foundation and Ingestion | In Progress (03/03 complete) |
+| 1 | Foundation and Ingestion | Complete (05/05 plans done) |
 | 2 | Detection Engine | Pending |
 | 3 | Storage and Alerting | Pending |
 | 4 | REST API | Pending |
@@ -56,6 +56,9 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 | Mark offset after channel send (not before) | Prevents silent data loss on crash — MarkCommitRecords called only after successful c.out send |
 | Buffered channel capacity 1000 | Decouples Kafka poll rate from downstream processing speed at <1k logs/sec target |
 | AlreadyRegisteredError pattern for Vec metric tests | Gather() omits Vec metrics with no observations; re-registering same collector returns AlreadyRegisteredError to prove registration |
+| goleak.VerifyTestMain not VerifyNone | VerifyNone produces false positives with parallel tests; VerifyTestMain is the correct goroutine leak detection pattern |
+| testutil.ToFloat64 on default registry for Prometheus assertions | Custom prometheus.NewRegistry() causes double-registration panic since metrics are already registered via init() |
+| Consumer ordering invariants via source inspection | strings.Index ordering assertions validate at-least-once semantics (INGEST-02) without requiring a live Kafka broker; full integration deferred to Phase 5 |
 
 ---
 
@@ -69,8 +72,8 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 ## Session Continuity
 
-**Last session:** 2026-03-21T08:04:32.777Z
-**Stopped at:** Completed 01-foundation-and-ingestion/01-04-PLAN.md
+**Last session:** 2026-03-21T14:57:14.039Z
+**Stopped at:** Completed 01-foundation-and-ingestion/01-05-PLAN.md
 **Next action:** Phase 01 plans complete — ready for phase transition or next phase
 
 ---
