@@ -23,7 +23,7 @@
 
 ### Detection
 
-- [ ] **DETECT-01**: Detection engine evaluates incoming log entries against registered rules using a sliding time window
+- [x] **DETECT-01**: Detection engine evaluates incoming log entries against registered rules using a sliding time window
 - [ ] **DETECT-02**: Rule: **Error Rate Spike** — fires when error-level log count for a service exceeds threshold within a window
 - [ ] **DETECT-03**: Rule: **Latency Threshold Breach** — fires when `duration_ms` field exceeds threshold for >N% of requests in window (requires `duration_ms` field present)
 - [ ] **DETECT-04**: Rule: **Repeated Failure** — fires when the same error (by normalized message fingerprint) repeats >N times in window
@@ -32,7 +32,7 @@
 - [ ] **DETECT-07**: Rule: **Service Silence** — fires when a known-active service emits no logs for longer than a configurable threshold (timer-based, not event-driven)
 - [ ] **DETECT-08**: Alert deduplication — per-rule cooldown window prevents repeated alerts for the same ongoing condition
 - [ ] **DETECT-09**: Detection rules and thresholds are configurable via YAML/JSON config file (no code changes required to tune thresholds)
-- [ ] **DETECT-10**: Window state is cleaned up for inactive services to prevent unbounded memory growth
+- [x] **DETECT-10**: Window state is cleaned up for inactive services to prevent unbounded memory growth
 
 ### Storage
 
