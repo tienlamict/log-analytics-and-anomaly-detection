@@ -18,14 +18,17 @@ type cooldownKey struct {
 // DetectorEngine dispatches log entries to a registered set of domain.Detector
 // implementations, manages warm-up suppression, per-(rule,service) cooldown, and
 // runs a background eviction goroutine to keep detector state bounded.
+// If a *ServiceSilenceRule is registered, a separate heartbeat goroutine runs
+// CheckSilence on the configured interval.
 type DetectorEngine struct {
-	detectors    []domain.Detector
-	cooldowns    map[cooldownKey]time.Time
-	cooldownDur  time.Duration
-	warmupUntil  time.Time
-	logger       *zap.Logger
-	out          chan domain.Anomaly
-	evictStop    chan struct{}
+	detectors   []domain.Detector
+	cooldowns   map[cooldownKey]time.Time
+	cooldownDur time.Duration
+	warmupUntil time.Time
+	logger      *zap.Logger
+	out         chan domain.Anomaly
+	evictStop   chan struct{}
+	silenceRule *ServiceSilenceRule // non-nil when a ServiceSilenceRule is registered
 }
 
 // maxWindowDuration returns the largest window / silence-after duration across all
@@ -62,6 +65,15 @@ func NewDetectorEngine(detectors []domain.Detector, cfg DetectionConfig, logger 
 		logger:      logger,
 		out:         make(chan domain.Anomaly, 256),
 		evictStop:   make(chan struct{}),
+	}
+
+	// Wire silence rule heartbeat: type-assert each detector for *ServiceSilenceRule.
+	for _, d := range detectors {
+		if sr, ok := d.(*ServiceSilenceRule); ok {
+			e.silenceRule = sr
+			go e.silenceWatcher(sr)
+			break // only one silence rule is expected
+		}
 	}
 
 	go e.evictLoop(cfg.EvictionInterval)
@@ -134,6 +146,43 @@ func (e *DetectorEngine) evictLoop(interval time.Duration) {
 			for key, last := range e.cooldowns {
 				if time.Since(last) > e.cooldownDur*2 {
 					delete(e.cooldowns, key)
+				}
+			}
+		case <-e.evictStop:
+			return
+		}
+	}
+}
+
+// silenceWatcher is a heartbeat goroutine that periodically calls CheckSilence on
+// the given ServiceSilenceRule and emits resulting anomalies to the output channel.
+// It respects the engine's cooldown mechanism and stops when evictStop is closed.
+func (e *DetectorEngine) silenceWatcher(sr *ServiceSilenceRule) {
+	ticker := time.NewTicker(sr.cfg.CheckInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if time.Now().Before(e.warmupUntil) {
+				continue // suppress during warmup
+			}
+			anomalies := sr.CheckSilence()
+			for _, anomaly := range anomalies {
+				key := cooldownKey{ruleID: anomaly.RuleID, service: anomaly.Service}
+				if last, ok := e.cooldowns[key]; ok && time.Since(last) < e.cooldownDur {
+					continue // suppress: cooldown still active
+				}
+				e.cooldowns[key] = time.Now()
+				metrics.AnomaliesDetectedTotal.WithLabelValues(anomaly.RuleID).Inc()
+
+				select {
+				case e.out <- anomaly:
+				default:
+					e.logger.Warn("anomaly channel full, dropping silence anomaly",
+						zap.String("rule_id", anomaly.RuleID),
+						zap.String("service", anomaly.Service),
+					)
 				}
 			}
 		case <-e.evictStop:
