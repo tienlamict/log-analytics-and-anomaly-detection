@@ -10,3 +10,49 @@ metrics:
 
 log:
   level: "info"
+
+detection:
+  window_duration: "5m"
+  eviction_interval: "1m"
+  cooldown_duration: "15m"
+  warmup_multiplier: 2
+  rules:
+    error_rate:
+      enabled: true
+      threshold: 10          # fire when >= 10 errors in window
+      window: "5m"
+      severity: "high"
+    latency:
+      enabled: true
+      threshold_ms: 500      # latency breach threshold in milliseconds
+      breach_rate_percent: 20 # fire when >= 20% of requests breach
+      window: "5m"
+      severity: "medium"
+    repeated_failure:
+      enabled: true
+      threshold: 5           # fire when same error fingerprint seen >= 5 times
+      window: "5m"
+      severity: "medium"
+    auth_burst:
+      enabled: true
+      threshold: 10          # fire when >= 10 auth failures from same source
+      window: "5m"
+      ip_field: "source_ip"
+      user_field: "username"
+      severity: "high"
+    off_hours:
+      enabled: true
+      business_hours_start: 9  # 9 AM
+      business_hours_end: 17   # 5 PM
+      timezone: "UTC"
+      sensitive_paths:
+        - "/admin"
+        - "/api/v1/users"
+        - "/internal"
+      severity: "medium"
+    service_silence:
+      enabled: true
+      silence_after: "5m"     # fire after 5 minutes of silence
+      check_interval: "30s"   # heartbeat check frequency
+      min_log_count: 5        # require 5 logs before tracking (cold-start guard)
+      severity: "critical"
