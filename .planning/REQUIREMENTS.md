@@ -58,8 +58,8 @@
 
 ### Observability
 
-- [ ] **OBS-01**: Structured logging via Zap throughout the pipeline (not fmt.Printf)
-- [ ] **OBS-02**: Prometheus metrics: logs consumed, processing latency, anomalies detected by rule, ES write errors, alerts sent/failed, Kafka consumer lag
+- [x] **OBS-01**: Structured logging via Zap throughout the pipeline (not fmt.Printf)
+- [x] **OBS-02**: Prometheus metrics: logs consumed, processing latency, anomalies detected by rule, ES write errors, alerts sent/failed, Kafka consumer lag
 
 ### Testing
 
