@@ -4,12 +4,12 @@ milestone: v1.0.0
 milestone_name: milestone
 status: unknown
 stopped_at: Completed 02-detection-engine/02-02-PLAN.md
-last_updated: "2026-03-21T15:36:56.748Z"
+last_updated: "2026-03-21T15:37:55.593Z"
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 10
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -27,12 +27,12 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Phase:** 2
 **Milestone:** v1.0.0
-**Overall progress:** [███████░░░] 70% — 7/10 plans complete
+**Overall progress:** [████████░░] 80% — 8/10 plans complete
 
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | Foundation and Ingestion | Complete (05/05 plans done) |
-| 2 | Detection Engine | In Progress (02/04 plans done) |
+| 2 | Detection Engine | In Progress (03/04 plans done) |
 | 3 | Storage and Alerting | Pending |
 | 4 | REST API | Pending |
 | 5 | Integration and Hardening | Pending |
@@ -63,6 +63,9 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 | Non-monotonic scan in slidingWindow.CountWithin | Kafka out-of-order delivery means timestamps are not guaranteed monotonic; full scan safer than short-circuit optimization |
 | Rules in internal/detection/ package (not sub-package) | slidingWindow is unexported; co-location avoids exporting it or using type aliases |
 | Custom latencyWindow struct for LatencyThresholdRule | slidingWindow tracks timestamps only; breach rate math needs bool per entry alongside timestamp |
+| ServiceSilenceRule adapter pattern: Evaluate never fires | Absence-based detection cannot be event-driven; CheckSilence polled by heartbeat goroutine so anomalies flow through same output channel |
+| lastSeen tracks ingest time not entry.Timestamp | Silence detection requires wall-clock elapsed time since last ingestion, not the timestamp in the log event |
+| Only ServiceSilenceRule needs sync.Mutex | It is the only rule where goroutine boundaries cross (pipeline Evaluate vs heartbeat CheckSilence); all others satisfy single-goroutine-caller contract |
 
 ---
 
@@ -76,9 +79,9 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 ## Session Continuity
 
-**Last session:** 2026-03-21T15:36:56.744Z
-**Stopped at:** Completed 02-detection-engine/02-02-PLAN.md
-**Next action:** Phase 02 plan 02 complete — ready to execute 02-03 (auth burst, off-hours, service silence rules)
+**Last session:** 2026-03-21T15:36:46Z
+**Stopped at:** Completed 02-detection-engine/02-03-PLAN.md
+**Next action:** Phase 02 plan 03 complete — ready to execute 02-04 (channel coordination and pipeline wiring)
 
 ---
 
