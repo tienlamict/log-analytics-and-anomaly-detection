@@ -12,14 +12,13 @@ Detect anomalies in application logs in real-time and surface them via alerts an
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Parse and normalize structured and unstructured log entries — Validated in Phase 1: Foundation and Ingestion
+- [x] Apply rule-based anomaly detection: error rate spikes, latency thresholds, repeated failures within a time window — Validated in Phase 2: Detection Engine
+- [x] Detect security-relevant patterns: auth failures, unusual access patterns — Validated in Phase 2: Detection Engine
 
 ### Active
 
 - [ ] Consume application logs from a message queue (Kafka)
-- [ ] Parse and normalize structured and unstructured log entries
-- [ ] Apply rule-based anomaly detection: error rate spikes, latency thresholds, repeated failures within a time window
-- [ ] Detect security-relevant patterns: auth failures, unusual access patterns
 - [ ] Persist raw logs and detected anomalies to Elasticsearch
 - [ ] Send email alerts when anomalies are detected
 - [ ] Expose REST API for querying logs and anomalies
@@ -55,7 +54,7 @@ Detect anomalies in application logs in real-time and surface them via alerts an
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Kafka as message queue | Natural fit for event-driven architecture; consumer groups allow multiple processors; supports replay | — Pending |
-| Rule-based detection only | Predictable, debuggable, sufficient for known anomaly patterns in v1 | — Pending |
+| Rule-based detection only | Predictable, debuggable, sufficient for known anomaly patterns in v1 | Validated in Phase 2 — 7 rules implemented with sliding-window state, cooldown dedup, warm-up suppression |
 | Elasticsearch for storage | Supports full-text log search + time-range anomaly queries in one store | — Pending |
 | Email alerts for v1 | Simplest reliable channel; webhook/Slack added when routing logic is clearer | — Pending |
 
@@ -77,4 +76,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-21 after initialization*
+*Last updated: 2026-03-21 after Phase 2: Detection Engine*
