@@ -24,9 +24,9 @@
 ### Detection
 
 - [x] **DETECT-01**: Detection engine evaluates incoming log entries against registered rules using a sliding time window
-- [ ] **DETECT-02**: Rule: **Error Rate Spike** — fires when error-level log count for a service exceeds threshold within a window
-- [ ] **DETECT-03**: Rule: **Latency Threshold Breach** — fires when `duration_ms` field exceeds threshold for >N% of requests in window (requires `duration_ms` field present)
-- [ ] **DETECT-04**: Rule: **Repeated Failure** — fires when the same error (by normalized message fingerprint) repeats >N times in window
+- [x] **DETECT-02**: Rule: **Error Rate Spike** — fires when error-level log count for a service exceeds threshold within a window
+- [x] **DETECT-03**: Rule: **Latency Threshold Breach** — fires when `duration_ms` field exceeds threshold for >N% of requests in window (requires `duration_ms` field present)
+- [x] **DETECT-04**: Rule: **Repeated Failure** — fires when the same error (by normalized message fingerprint) repeats >N times in window
 - [ ] **DETECT-05**: Rule: **Auth Failure Burst** — fires when auth failure events for a single IP or user exceed threshold in window
 - [ ] **DETECT-06**: Rule: **Off-Hours Access** — fires when access to configured sensitive endpoints occurs outside defined business hours
 - [ ] **DETECT-07**: Rule: **Service Silence** — fires when a known-active service emits no logs for longer than a configurable threshold (timer-based, not event-driven)

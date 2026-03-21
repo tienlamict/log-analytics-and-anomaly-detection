@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-detection-engine/02-01-PLAN.md
-last_updated: "2026-03-21T15:33:10.245Z"
+stopped_at: Completed 02-detection-engine/02-02-PLAN.md
+last_updated: "2026-03-21T15:36:56.748Z"
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 10
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -27,12 +27,12 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Phase:** 2
 **Milestone:** v1.0.0
-**Overall progress:** [██████░░░░] 60% — 6/10 plans complete
+**Overall progress:** [███████░░░] 70% — 7/10 plans complete
 
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | Foundation and Ingestion | Complete (05/05 plans done) |
-| 2 | Detection Engine | In Progress (01/04 plans done) |
+| 2 | Detection Engine | In Progress (02/04 plans done) |
 | 3 | Storage and Alerting | Pending |
 | 4 | REST API | Pending |
 | 5 | Integration and Hardening | Pending |
@@ -61,6 +61,8 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 | Consumer ordering invariants via source inspection | strings.Index ordering assertions validate at-least-once semantics (INGEST-02) without requiring a live Kafka broker; full integration deferred to Phase 5 |
 | Single-goroutine-caller contract on DetectorEngine.Evaluate | No mutex needed; pipeline worker is single-goroutine; evictLoop only calls d.Reset(); channel coordination deferred to Plan 02-04 if race detector fires |
 | Non-monotonic scan in slidingWindow.CountWithin | Kafka out-of-order delivery means timestamps are not guaranteed monotonic; full scan safer than short-circuit optimization |
+| Rules in internal/detection/ package (not sub-package) | slidingWindow is unexported; co-location avoids exporting it or using type aliases |
+| Custom latencyWindow struct for LatencyThresholdRule | slidingWindow tracks timestamps only; breach rate math needs bool per entry alongside timestamp |
 
 ---
 
@@ -74,9 +76,9 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 ## Session Continuity
 
-**Last session:** 2026-03-21T15:33:10.241Z
-**Stopped at:** Completed 02-detection-engine/02-01-PLAN.md
-**Next action:** Phase 02 plan 01 complete — ready to execute 02-02 (error-rate, latency, repeated-failure rules)
+**Last session:** 2026-03-21T15:36:56.744Z
+**Stopped at:** Completed 02-detection-engine/02-02-PLAN.md
+**Next action:** Phase 02 plan 02 complete — ready to execute 02-03 (auth burst, off-hours, service silence rules)
 
 ---
 

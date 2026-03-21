@@ -59,11 +59,11 @@ Plans:
 **Status:** Planned
 **Depends on**: Phase 1
 **Requirements**: DETECT-01, DETECT-02, DETECT-03, DETECT-04, DETECT-05, DETECT-06, DETECT-07, DETECT-08, DETECT-09, DETECT-10
-**Plans:** 1/5 plans executed
+**Plans:** 2/5 plans executed
 
 Plans:
 - [x] 02-01-PLAN.md — Detection engine core, sliding window, config types, eviction goroutine
-- [ ] 02-02-PLAN.md — Error spike, latency breach, and repeated failure rules
+- [x] 02-02-PLAN.md — Error spike, latency breach, and repeated failure rules
 - [ ] 02-03-PLAN.md — Auth burst, off-hours access, and service silence rules
 - [ ] 02-04-PLAN.md — YAML config loading, Viper defaults, config.yaml detection section
 - [ ] 02-05-PLAN.md — Detection unit tests (all rules, engine, cooldown, warm-up, eviction)
@@ -193,7 +193,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation and Ingestion | 5/5 | Complete   | 2026-03-21 |
-| 2. Detection Engine | 1/5 | In Progress|  |
+| 2. Detection Engine | 2/5 | In Progress|  |
 | 3. Storage and Alerting | 0/4 | Not started | - |
 | 4. REST API | 0/4 | Not started | - |
 | 5. Integration and Hardening | 0/3 | Not started | - |
