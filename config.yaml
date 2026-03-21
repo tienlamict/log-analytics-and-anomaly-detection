@@ -1,0 +1,12 @@
+kafka:
+  brokers:
+    - "localhost:9092"
+  topic: "application-logs"
+  group_id: "log-analytics"
+  initial_offset: "oldest"  # "oldest" or "newest"
+
+metrics:
+  port: 2112
+
+log:
+  level: "info"
