@@ -1,6 +1,7 @@
 package detection
 
 import (
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -23,6 +24,7 @@ type cooldownKey struct {
 type DetectorEngine struct {
 	detectors   []domain.Detector
 	cooldowns   map[cooldownKey]time.Time
+	cooldownMu  sync.Mutex // guards cooldowns map (written by Evaluate/silenceWatcher, iterated by evictLoop)
 	cooldownDur time.Duration
 	warmupUntil time.Time
 	logger      *zap.Logger
@@ -83,12 +85,10 @@ func NewDetectorEngine(detectors []domain.Detector, cfg DetectionConfig, logger 
 // Evaluate dispatches entry to all registered detectors and emits any resulting
 // anomalies on the output channel.
 //
-// Single-goroutine-caller contract: Evaluate must be called from a single goroutine
-// (the pipeline worker). The engine struct contains no mutex because all writes to
-// cooldowns and reads from warmupUntil occur exclusively in this goroutine. The
-// evictLoop goroutine calls only d.Reset() on each detector; channel-based
-// coordination between Evaluate and evictLoop will be added in Plan 02-04 if a
-// race detector finding surfaces.
+// Evaluate is safe to call from multiple goroutines: the cooldowns map is
+// protected by cooldownMu. Calls to d.Evaluate() on individual detectors are
+// not mutex-protected — detectors are expected to manage their own concurrency
+// if needed (e.g. ServiceSilenceRule uses its own mutex).
 func (e *DetectorEngine) Evaluate(entry domain.LogEntry) {
 	if time.Now().Before(e.warmupUntil) {
 		return // suppress all anomaly output during warm-up period
@@ -101,11 +101,19 @@ func (e *DetectorEngine) Evaluate(entry domain.LogEntry) {
 		}
 
 		key := cooldownKey{ruleID: anomaly.RuleID, service: anomaly.Service}
-		if last, ok := e.cooldowns[key]; ok && time.Since(last) < e.cooldownDur {
+
+		e.cooldownMu.Lock()
+		last, ok := e.cooldowns[key]
+		suppress := ok && time.Since(last) < e.cooldownDur
+		if !suppress {
+			e.cooldowns[key] = time.Now()
+		}
+		e.cooldownMu.Unlock()
+
+		if suppress {
 			continue // suppress: same (rule, service) fired too recently
 		}
 
-		e.cooldowns[key] = time.Now()
 		metrics.AnomaliesDetectedTotal.WithLabelValues(anomaly.RuleID).Inc()
 
 		select {
@@ -143,11 +151,13 @@ func (e *DetectorEngine) evictLoop(interval time.Duration) {
 				d.Reset() // Reset evicts stale entries — does NOT fully clear state
 			}
 			// Evict cooldown entries that are well past their cooldown window.
+			e.cooldownMu.Lock()
 			for key, last := range e.cooldowns {
 				if time.Since(last) > e.cooldownDur*2 {
 					delete(e.cooldowns, key)
 				}
 			}
+			e.cooldownMu.Unlock()
 		case <-e.evictStop:
 			return
 		}
@@ -170,10 +180,19 @@ func (e *DetectorEngine) silenceWatcher(sr *ServiceSilenceRule) {
 			anomalies := sr.CheckSilence()
 			for _, anomaly := range anomalies {
 				key := cooldownKey{ruleID: anomaly.RuleID, service: anomaly.Service}
-				if last, ok := e.cooldowns[key]; ok && time.Since(last) < e.cooldownDur {
+
+				e.cooldownMu.Lock()
+				last, ok := e.cooldowns[key]
+				suppress := ok && time.Since(last) < e.cooldownDur
+				if !suppress {
+					e.cooldowns[key] = time.Now()
+				}
+				e.cooldownMu.Unlock()
+
+				if suppress {
 					continue // suppress: cooldown still active
 				}
-				e.cooldowns[key] = time.Now()
+
 				metrics.AnomaliesDetectedTotal.WithLabelValues(anomaly.RuleID).Inc()
 
 				select {
