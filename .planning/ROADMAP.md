@@ -95,18 +95,25 @@ Plans:
 ### Phase 3: Storage and Alerting
 
 **Goal**: Persist raw log entries and detected anomalies to Elasticsearch using bulk indexing with correct index mappings applied at startup, and dispatch asynchronous SMTP email alerts for confirmed anomalies with deduplication wired to the existing cooldown state.
-**Status:** Pending
+**Status:** Planned
 **Depends on**: Phase 2
 **Requirements**: STORE-01, STORE-02, STORE-03, STORE-04, ALERT-01, ALERT-02, ALERT-03
+**Plans:** 4 plans
 
-### Plans
+Plans:
+- [ ] 03-01-PLAN.md — ES client constructor, index template setup, config extensions (ESConfig + SMTPConfig)
+- [ ] 03-02-PLAN.md — Log and anomaly BulkIndexer (LogIndexer + AnomalyIndexer)
+- [ ] 03-03-PLAN.md — SMTP email alerter (SMTPAlerter with async dispatch)
+- [ ] 03-04-PLAN.md — Alert dispatcher fan-out (anomaly -> storage + alerting)
+
+### Plans (Detail)
 
 | # | Plan | Description |
 |---|------|-------------|
 | 03-01 | Elasticsearch index setup and mapping | At application startup, before the Kafka consumer starts, apply index templates for `logs-*` (daily rollover, explicit mapping with `dynamic: false`, `@timestamp`, `level`, `service`, `message`, `fields` as a `flattened` or `keyword` blob to prevent mapping explosion — Pitfall E2/O5) and `anomalies` (explicit mapping for all `Anomaly` struct fields) via the ES `TypedClient`. Fail fast if templates cannot be applied (Pitfall E6). Set shard count to 1 primary per daily index for the target volume scale. |
 | 03-02 | Log and anomaly BulkIndexer | Implement `internal/elasticsearch` with two `esutil.BulkIndexer` instances: one for `logs-{YYYY.MM.DD}` (daily-rollover index name generated at index time) and one for `anomalies`. Use deterministic document IDs derived from `sha256(partition + offset)` for logs and anomaly UUID for anomalies to ensure idempotent upsert on reprocessing (Pitfall O6). Parse every bulk response body — not just HTTP status — and increment `elasticsearch_write_errors_total` on per-item failures (Pitfall E1). Configure explicit `http.Transport` with bounded connection pool and `ResponseHeaderTimeout` (Pitfall E5). |
 | 03-03 | SMTP email alerter | Implement `internal/smtp` `SMTPAlerter` using `github.com/wneessen/go-mail` v0.7.2 (patched for GO-2025-3988). Email includes anomaly type, affected service, detection time, threshold breached, severity, and a sample of contributing log lines (ALERT-02). All SMTP config — host, port, credentials, recipient list, TLS policy — is externalised via `config.yaml` / environment variables (ALERT-03). Alerting is fully asynchronous: detection pipeline writes to a buffered `chan Anomaly`; a separate goroutine drains the channel and sends emails; SMTP failures are logged and metered but do not block the pipeline (Pitfall O4). |
-| 03-04 | Alerter orchestrator and deduplication wiring | Implement `internal/alert` `Alerter`: consumes the `anomaly` channel, checks the cooldown state from Phase 2 before dispatching (DETECT-08 wired), forwards the anomaly to both the SMTP alerter and the anomaly BulkIndexer regardless of email outcome (anomaly record is the source of truth). Wire the full fan-out path: `LogEntry` → tee → `[LogIndexer, DetectorEngine]`; `Anomaly` → `Alerter` → `[SMTPAlerter, AnomalyIndexer]`. |
+| 03-04 | Alerter orchestrator and deduplication wiring | Implement `internal/alert` `Dispatcher`: consumes the `anomaly` channel from DetectorEngine.Anomalies() (already post-cooldown), forwards the anomaly to both the SMTP alerter and the anomaly BulkIndexer regardless of email outcome (anomaly record is the source of truth). Wire the fan-out path: `Anomaly` -> `Dispatcher` -> `[SMTPAlerter, AnomalyIndexer]`. |
 
 ### Success Criteria
 
@@ -194,7 +201,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Foundation and Ingestion | 5/5 | Complete   | 2026-03-21 |
 | 2. Detection Engine | 5/5 | Complete    | 2026-03-21 |
-| 3. Storage and Alerting | 0/4 | Not started | - |
+| 3. Storage and Alerting | 0/4 | Planned | - |
 | 4. REST API | 0/4 | Not started | - |
 | 5. Integration and Hardening | 0/3 | Not started | - |
 
@@ -206,7 +213,7 @@ Plans:
 |-------|------|-------|--------------|--------|
 | 1 | Foundation and Ingestion | 5 | INGEST-01-04, PARSE-01-04, OBS-01-02, TEST-01 | Planned |
 | 2 | Detection Engine | 5 | DETECT-01-10 | Planned |
-| 3 | Storage and Alerting | 4 | STORE-01-04, ALERT-01-03 | Pending |
+| 3 | Storage and Alerting | 4 | STORE-01-04, ALERT-01-03 | Planned |
 | 4 | REST API | 4 | API-01-06 | Pending |
 | 5 | Integration and Hardening | 3 | TEST-02 | Pending |
 
