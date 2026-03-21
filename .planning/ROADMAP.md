@@ -27,19 +27,17 @@ Build a production-grade, event-driven log analytics and anomaly detection syste
 ### Phase 1: Foundation and Ingestion
 
 **Goal**: Establish the project skeleton and deliver a working Kafka consumer that reliably ingests, parses, and normalises log entries with full observability instrumentation.
-**Status:** Pending
+**Status:** Planned
 **Depends on**: Nothing (first phase)
 **Requirements**: INGEST-01, INGEST-02, INGEST-03, INGEST-04, PARSE-01, PARSE-02, PARSE-03, PARSE-04, OBS-01, OBS-02, TEST-01
+**Plans:** 5 plans
 
-### Plans
-
-| # | Plan | Description |
-|---|------|-------------|
-| 01-01 | Module scaffold and domain types | Initialise Go module, define package structure (`cmd/`, `internal/domain`, `internal/config`), declare `LogEntry`, `RawMessage`, `Anomaly`, and all core interfaces (`MessageConsumer`, `Parser`, `Enricher`, `Detector`, `AlertChannel`, `LogStore`, `AnomalyStore`) with zero external dependencies in the domain package. |
-| 01-02 | Kafka consumer | Implement `internal/kafka` consumer using franz-go (`kgo`), consumer group with at-least-once semantics, manual offset commits via `MarkCommitRecords` after downstream confirmation, configurable initial offset (oldest vs newest), `OnPartitionsRevoked` drain hook, and graceful shutdown via context cancellation. Wire `plugin/kzap` for structured Kafka client logs. |
-| 01-03 | Log parser and normalisation | Implement `internal/pipeline` parser: pure-function `Parse([]byte) (LogEntry, error)` supporting structured JSON and unstructured plain-text fallback; normalise log level variants (`ERR`, `FATAL` → `ERROR`; `warn`, `WARNING` → `WARN`); attach UUID, ingest timestamp, and raw source; log and meter parse errors without dropping the pipeline. |
-| 01-04 | Observability skeleton | Wire `go.uber.org/zap` throughout the pipeline using `zap.NewProduction()` for deployed builds; register all Prometheus counters and histograms (`logs_consumed_total`, `logs_processed_duration_seconds`, `anomalies_detected_total`, `elasticsearch_write_errors_total`, `email_alerts_sent_total`, `email_alerts_failed_total`, `kafka_consumer_lag`) via `prometheus/client_golang`; expose `/metrics` endpoint. |
-| 01-05 | Parser unit tests | Unit-test the parser and log-level normaliser with table-driven tests using `testify/assert`; cover structured JSON, plain-text fallback, malformed input, and all level-variant mappings; run the test suite with `-race`; assert zero goroutine leaks using `goleak`. |
+Plans:
+- [ ] 01-01-PLAN.md — Module scaffold, domain types, interfaces, config loader
+- [ ] 01-02-PLAN.md — Kafka consumer with franz-go (at-least-once semantics)
+- [ ] 01-03-PLAN.md — Log parser and level normalisation
+- [ ] 01-04-PLAN.md — Observability skeleton (Prometheus metrics, Zap logging, /metrics endpoint)
+- [ ] 01-05-PLAN.md — Parser unit tests (table-driven, goleak)
 
 ### Success Criteria
 
@@ -186,7 +184,7 @@ Build a production-grade, event-driven log analytics and anomaly detection syste
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation and Ingestion | 0/5 | Not started | - |
+| 1. Foundation and Ingestion | 0/5 | Planned | - |
 | 2. Detection Engine | 0/5 | Not started | - |
 | 3. Storage and Alerting | 0/4 | Not started | - |
 | 4. REST API | 0/4 | Not started | - |
@@ -198,7 +196,7 @@ Build a production-grade, event-driven log analytics and anomaly detection syste
 
 | Phase | Name | Plans | Requirements | Status |
 |-------|------|-------|--------------|--------|
-| 1 | Foundation and Ingestion | 5 | INGEST-01–04, PARSE-01–04, OBS-01–02, TEST-01 | Pending |
+| 1 | Foundation and Ingestion | 5 | INGEST-01–04, PARSE-01–04, OBS-01–02, TEST-01 | Planned |
 | 2 | Detection Engine | 5 | DETECT-01–10 | Pending |
 | 3 | Storage and Alerting | 4 | STORE-01–04, ALERT-01–03 | Pending |
 | 4 | REST API | 4 | API-01–06 | Pending |
