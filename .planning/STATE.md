@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 04-rest-api/04-01-PLAN.md
-last_updated: "2026-03-22T04:03:07.507Z"
+stopped_at: Completed 04-rest-api/04-02-PLAN.md
+last_updated: "2026-03-22T04:06:12.335Z"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 18
-  completed_plans: 15
+  completed_plans: 16
 ---
 
 # Project State
@@ -27,14 +27,14 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Phase:** 4
 **Milestone:** v1.0.0
-**Overall progress:** [████████░░] 83% — 15/18 plans complete
+**Overall progress:** [█████████░] 89% — 16/18 plans complete
 
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | Foundation and Ingestion | Complete (05/05 plans done) |
 | 2 | Detection Engine | Complete (05/05 plans done) |
 | 3 | Storage and Alerting | Complete (04/04 plans done) |
-| 4 | REST API | In Progress (01/04 plans done) |
+| 4 | REST API | In Progress (02/04 plans done) |
 | 5 | Integration and Hardening | Pending |
 
 ---
@@ -82,6 +82,7 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 | AnomalyQuery.Type maps to rule_id ES field (04-01) | anomalies index mapping uses rule_id keyword; AnomalyQuery.Type is the domain abstraction over it |
 | detected_at field for anomaly time range (04-01) | anomalies index uses detected_at date field (not @timestamp) per the index template in setup.go |
 | atomic.Bool for Server.ready gate (04-01) | Single writer (SetReady), multiple reader goroutines; atomic avoids mutex overhead for a simple boolean flag |
+| parseIntParam clamps out-of-range ints (04-02) | Values below min set to min, above max set to max; non-integer strings return 400; default page=1 size=20 max size=1000 max page=10000 |
 
 ---
 
@@ -95,9 +96,9 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 ## Session Continuity
 
-**Last session:** 2026-03-22T04:03:07.495Z
-**Stopped at:** Completed 04-rest-api/04-01-PLAN.md
-**Next action:** Phase 04 plan 01 complete — continue with 04-02 (log query handlers)
+**Last session:** 2026-03-22T04:06:12.323Z
+**Stopped at:** Completed 04-rest-api/04-02-PLAN.md
+**Next action:** Phase 04 plan 02 complete — continue with 04-03 (anomaly query handlers)
 
 ---
 
