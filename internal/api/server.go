@@ -59,11 +59,12 @@ func NewServer(
 	r.Get("/ready", s.handleReady)
 	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 
-	// API v1 sub-router — log and anomaly handlers registered by plans 04-02 and 04-03
+	// API v1 sub-router — log and anomaly handlers
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/logs", s.handleListLogs)
 		r.Get("/logs/{id}", s.handleGetLog)
-		// TODO(04-03): register GET /anomalies and GET /anomalies/{id}
+		r.Get("/anomalies", s.handleListAnomalies)
+		r.Get("/anomalies/{id}", s.handleGetAnomaly)
 	})
 
 	s.router = r
