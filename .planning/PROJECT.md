@@ -21,7 +21,7 @@ Detect anomalies in application logs in real-time and surface them via alerts an
 - [ ] Consume application logs from a message queue (Kafka)
 - [x] Persist raw logs and detected anomalies to Elasticsearch — Validated in Phase 3: Storage and Alerting
 - [x] Send email alerts when anomalies are detected — Validated in Phase 3: Storage and Alerting
-- [ ] Expose REST API for querying logs and anomalies
+- [x] Expose REST API for querying logs and anomalies — Validated in Phase 4: REST API
 - [ ] End-to-end pipeline: ingest → process → detect → alert → store
 
 ### Out of Scope
@@ -57,6 +57,7 @@ Detect anomalies in application logs in real-time and surface them via alerts an
 | Rule-based detection only | Predictable, debuggable, sufficient for known anomaly patterns in v1 | Validated in Phase 2 — 7 rules implemented with sliding-window state, cooldown dedup, warm-up suppression |
 | Elasticsearch for storage | Supports full-text log search + time-range anomaly queries in one store | Validated in Phase 3 — BulkIndexer with deterministic IDs, daily log indices, fixed anomaly index |
 | Email alerts for v1 | Simplest reliable channel; webhook/Slack added when routing logic is clearer | Validated in Phase 3 — go-mail v0.7.2, async dispatch via buffered channel, TLS policy mapping |
+| chi router for REST API | Lightweight, idiomatic Go, composable middleware, chi.URLParam for path params | Validated in Phase 4 — v5.2.5, 4 routes under /api/v1, 20 httptest tests passing with race detector |
 
 ## Evolution
 
@@ -76,4 +77,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-22 after Phase 3: Storage and Alerting*
+*Last updated: 2026-03-22 after Phase 4: REST API*
