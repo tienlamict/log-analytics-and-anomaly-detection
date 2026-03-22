@@ -53,8 +53,8 @@
 - [ ] **API-02**: REST API endpoint `GET /api/v1/logs/{id}` — retrieve a single log entry by ID
 - [ ] **API-03**: REST API endpoint `GET /api/v1/anomalies` — query anomalies by type, service, severity, and time range with pagination
 - [ ] **API-04**: REST API endpoint `GET /api/v1/anomalies/{id}` — retrieve a single anomaly by ID
-- [ ] **API-05**: Health endpoints `GET /health` and `GET /ready` for container orchestration
-- [ ] **API-06**: Metrics endpoint `GET /metrics` exposing Prometheus metrics
+- [x] **API-05**: Health endpoints `GET /health` and `GET /ready` for container orchestration
+- [x] **API-06**: Metrics endpoint `GET /metrics` exposing Prometheus metrics
 
 ### Observability
 

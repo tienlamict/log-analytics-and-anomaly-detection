@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-storage-and-alerting/03-04-PLAN.md
-last_updated: "2026-03-22T02:11:08.455Z"
+stopped_at: Completed 04-rest-api/04-01-PLAN.md
+last_updated: "2026-03-22T04:03:07.507Z"
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 14
-  completed_plans: 14
+  total_plans: 18
+  completed_plans: 15
 ---
 
 # Project State
@@ -19,7 +19,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Detect anomalies in application logs in real-time and surface them via alerts and a queryable API — so problems are caught before users report them.
-**Current focus:** Phase 03 — storage-and-alerting
+**Current focus:** Phase 04 — rest-api
 
 ---
 
@@ -27,14 +27,14 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Phase:** 4
 **Milestone:** v1.0.0
-**Overall progress:** [██████████] 100% — 14/14 plans complete
+**Overall progress:** [████████░░] 83% — 15/18 plans complete
 
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | Foundation and Ingestion | Complete (05/05 plans done) |
 | 2 | Detection Engine | Complete (05/05 plans done) |
 | 3 | Storage and Alerting | Complete (04/04 plans done) |
-| 4 | REST API | Pending |
+| 4 | REST API | In Progress (01/04 plans done) |
 | 5 | Integration and Hardening | Pending |
 
 ---
@@ -78,6 +78,10 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 | AnomalyIndexer uses anomaly.ID (UUID) as document ID | UUID preserves semantic identity; DetectorEngine assigns UUIDs so anomalies are deduplicated by source |
 | No cooldown in Dispatcher (03-04) | Cooldown is handled upstream by DetectorEngine.Anomalies(); adding it in Dispatcher would suppress legitimate re-triggers |
 | Both IndexAnomaly and Send unconditional per anomaly (03-04) | Fan-out correctness requires both outputs receive every anomaly regardless of each other's error |
+| IDs query (not Get API) for LogIndexer.GetLog (04-01) | logs-* is a wildcard index pattern; the ES Get API requires a concrete index name; IDs query via Search works with wildcards |
+| AnomalyQuery.Type maps to rule_id ES field (04-01) | anomalies index mapping uses rule_id keyword; AnomalyQuery.Type is the domain abstraction over it |
+| detected_at field for anomaly time range (04-01) | anomalies index uses detected_at date field (not @timestamp) per the index template in setup.go |
+| atomic.Bool for Server.ready gate (04-01) | Single writer (SetReady), multiple reader goroutines; atomic avoids mutex overhead for a simple boolean flag |
 
 ---
 
@@ -91,9 +95,9 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 ## Session Continuity
 
-**Last session:** 2026-03-22T02:06:43Z
-**Stopped at:** Completed 03-storage-and-alerting/03-04-PLAN.md
-**Next action:** Phase 03 complete — continue with Phase 04 (REST API)
+**Last session:** 2026-03-22T04:03:07.495Z
+**Stopped at:** Completed 04-rest-api/04-01-PLAN.md
+**Next action:** Phase 04 plan 01 complete — continue with 04-02 (log query handlers)
 
 ---
 
