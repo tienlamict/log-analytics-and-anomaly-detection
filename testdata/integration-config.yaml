@@ -1,0 +1,69 @@
+kafka:
+  brokers: ["localhost:9092"]  # overridden at runtime in tests
+  topic: "application-logs"
+  group_id: "integration-test"
+  initial_offset: "oldest"
+
+metrics:
+  port: 2112
+
+log:
+  level: "debug"
+
+detection:
+  window_duration: "10s"
+  eviction_interval: "5s"
+  cooldown_duration: "1s"
+  warmup_multiplier: 0
+  rules:
+    error_rate:
+      enabled: true
+      threshold: 3
+      window: "10s"
+      severity: "high"
+    latency:
+      enabled: true
+      threshold_ms: 100
+      breach_rate_percent: 50
+      window: "10s"
+      severity: "medium"
+    repeated_failure:
+      enabled: true
+      threshold: 3
+      window: "10s"
+      severity: "medium"
+    auth_burst:
+      enabled: true
+      threshold: 3
+      window: "10s"
+      ip_field: "source_ip"
+      user_field: "username"
+      severity: "high"
+    off_hours:
+      enabled: true
+      business_hours_start: 9
+      business_hours_end: 17
+      timezone: "UTC"
+      sensitive_paths: ["/admin"]
+      severity: "medium"
+    service_silence:
+      enabled: true
+      silence_after: "30s"
+      check_interval: "5s"
+      min_log_count: 2
+      severity: "critical"
+
+elasticsearch:
+  addresses: ["http://localhost:9200"]  # overridden at runtime
+  max_idle_conns: 5
+  response_timeout: "10s"
+
+api:
+  port: 0  # ephemeral port for tests
+
+smtp:
+  host: "localhost"
+  port: 1025
+  from: "test@log-analytics.local"
+  recipients: ["test@example.com"]
+  tls_policy: "none"
