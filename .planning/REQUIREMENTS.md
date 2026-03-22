@@ -43,9 +43,9 @@
 
 ### Alerting
 
-- [ ] **ALERT-01**: Email alert is sent via SMTP when an anomaly is detected (after cooldown check)
-- [ ] **ALERT-02**: Alert email includes: anomaly type, affected service, detection time, threshold breached, severity, and sample log lines
-- [ ] **ALERT-03**: SMTP configuration (host, port, credentials, recipient) is externalized via config/environment
+- [x] **ALERT-01**: Email alert is sent via SMTP when an anomaly is detected (after cooldown check)
+- [x] **ALERT-02**: Alert email includes: anomaly type, affected service, detection time, threshold breached, severity, and sample log lines
+- [x] **ALERT-03**: SMTP configuration (host, port, credentials, recipient) is externalized via config/environment
 
 ### API
 

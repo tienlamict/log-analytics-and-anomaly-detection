@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-detection-engine/02-05-PLAN.md
-last_updated: "2026-03-21T16:00:17.741Z"
+stopped_at: Completed 03-storage-and-alerting/03-03-PLAN.md
+last_updated: "2026-03-22T01:52:51.230Z"
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 14
+  completed_plans: 11
 ---
 
 # Project State
@@ -19,7 +19,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Detect anomalies in application logs in real-time and surface them via alerts and a queryable API — so problems are caught before users report them.
-**Current focus:** Phase 02 — detection-engine
+**Current focus:** Phase 03 — storage-and-alerting
 
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Phase:** 3
 **Milestone:** v1.0.0
-**Overall progress:** [██████████] 100% — 10/10 plans complete
+**Overall progress:** [████████░░] 79% — 11/14 plans complete
 
 | Phase | Name | Status |
 |-------|------|--------|
@@ -69,6 +69,8 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 | Only ServiceSilenceRule needs sync.Mutex | It is the only rule where goroutine boundaries cross (pipeline Evaluate vs heartbeat CheckSilence); all others satisfy single-goroutine-caller contract |
 | config imports detection (not vice versa) | detection package has no config dependency so no import cycle; DetectionConfig stays in detection package |
 | No custom Viper DecodeHook for duration strings | Built-in StringToTimeDurationHookFunc handles "5m"->time.Duration; adding custom hook would override the default |
+| SMTPAlerter uses WithPort + WithTLSPolicy (not WithTLSPortPolicy) | Port is explicit in SMTPConfig; WithTLSPortPolicy auto-selects port and would conflict with the configured value |
+| SMTPAlerter queue-full drops return nil (non-fatal) with metric | Prevents dispatcher back-pressure from a transient SMTP buffer saturation event; failure is metered via EmailAlertsFailedTotal |
 
 ---
 
@@ -82,9 +84,9 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 ## Session Continuity
 
-**Last session:** 2026-03-21T16:11:00Z
-**Stopped at:** Completed 02-detection-engine/02-05-PLAN.md
-**Next action:** Phase 02 complete (all 5 plans done) — ready to begin Phase 03 (Storage and Alerting)
+**Last session:** 2026-03-22T01:52:51.216Z
+**Stopped at:** Completed 03-storage-and-alerting/03-03-PLAN.md
+**Next action:** Phase 03 plan 03 complete — continue with Phase 03 plans 04 (alert dispatcher)
 
 ---
 
