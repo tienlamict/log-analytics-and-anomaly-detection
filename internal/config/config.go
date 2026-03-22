@@ -8,6 +8,11 @@ import (
 	"github.com/spf13/viper"
 )
 
+// APIConfig holds REST API server configuration.
+type APIConfig struct {
+	Port int `mapstructure:"port"`
+}
+
 type Config struct {
 	Kafka         KafkaConfig              `mapstructure:"kafka"`
 	Metrics       MetricsConfig            `mapstructure:"metrics"`
@@ -15,6 +20,7 @@ type Config struct {
 	Detection     detection.DetectionConfig `mapstructure:"detection"`
 	Elasticsearch ESConfig                  `mapstructure:"elasticsearch"`
 	SMTP          SMTPConfig                `mapstructure:"smtp"`
+	API           APIConfig                 `mapstructure:"api"`
 }
 
 // ESConfig holds Elasticsearch connection configuration.
@@ -119,6 +125,9 @@ func Load() (Config, error) {
 	viper.SetDefault("elasticsearch.addresses", []string{"http://localhost:9200"})
 	viper.SetDefault("elasticsearch.max_idle_conns", 10)
 	viper.SetDefault("elasticsearch.response_timeout", "10s")
+
+	// API defaults
+	viper.SetDefault("api.port", 8080)
 
 	// SMTP defaults
 	viper.SetDefault("smtp.host", "localhost")
