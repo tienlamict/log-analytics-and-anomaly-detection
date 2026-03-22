@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
 	elasticsearch "github.com/elastic/go-elasticsearch/v9"
 	"github.com/elastic/go-elasticsearch/v9/esutil"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/core/search"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types"
 	"go.uber.org/zap"
 
 	"github.com/log-analytics/server/internal/domain"
@@ -19,6 +20,7 @@ import (
 // AnomalyIndexer implements domain.AnomalyStore by bulk-indexing anomalies to the
 // fixed "anomalies" index using the anomaly UUID as the document ID.
 type AnomalyIndexer struct {
+	client  *elasticsearch.TypedClient
 	indexer esutil.BulkIndexer
 	logger  *zap.Logger
 }
@@ -40,7 +42,7 @@ func NewAnomalyIndexer(client *elasticsearch.TypedClient, logger *zap.Logger) (*
 	if err != nil {
 		return nil, fmt.Errorf("create anomaly bulk indexer: %w", err)
 	}
-	return &AnomalyIndexer{indexer: indexer, logger: logger}, nil
+	return &AnomalyIndexer{client: client, indexer: indexer, logger: logger}, nil
 }
 
 // IndexAnomaly adds an anomaly to the bulk indexer queue.
@@ -70,14 +72,105 @@ func (ai *AnomalyIndexer) IndexAnomaly(ctx context.Context, anomaly domain.Anoma
 	})
 }
 
-// SearchAnomalies is not implemented in Phase 3; returns not-implemented error (Phase 4).
-func (ai *AnomalyIndexer) SearchAnomalies(_ context.Context, _ domain.AnomalyQuery) ([]domain.Anomaly, int64, error) {
-	return nil, 0, errors.New("not implemented")
+// SearchAnomalies executes a bool/term/range query against the anomalies index.
+// AnomalyQuery.Type maps to the ES "rule_id" field. Time range uses the "detected_at" field.
+func (ai *AnomalyIndexer) SearchAnomalies(ctx context.Context, q domain.AnomalyQuery) ([]domain.Anomaly, int64, error) {
+	var filters []types.Query
+
+	if q.Type != "" {
+		filters = append(filters, types.Query{
+			Term: map[string]types.TermQuery{"rule_id": {Value: q.Type}},
+		})
+	}
+	if q.Service != "" {
+		filters = append(filters, types.Query{
+			Term: map[string]types.TermQuery{"service": {Value: q.Service}},
+		})
+	}
+	if q.Severity != "" {
+		filters = append(filters, types.Query{
+			Term: map[string]types.TermQuery{"severity": {Value: q.Severity}},
+		})
+	}
+	if !q.From.IsZero() || !q.To.IsZero() {
+		drq := types.DateRangeQuery{}
+		if !q.From.IsZero() {
+			s := q.From.UTC().Format(time.RFC3339)
+			drq.Gte = &s
+		}
+		if !q.To.IsZero() {
+			s := q.To.UTC().Format(time.RFC3339)
+			drq.Lte = &s
+		}
+		filters = append(filters, types.Query{
+			Range: map[string]types.RangeQuery{"detected_at": drq},
+		})
+	}
+
+	// Clamp pagination
+	page := q.Page
+	if page < 1 {
+		page = 1
+	}
+	size := q.Size
+	if size < 1 {
+		size = 20
+	}
+	if size > 1000 {
+		size = 1000
+	}
+	from := (page - 1) * size
+
+	req := &search.Request{
+		Query: &types.Query{
+			Bool: &types.BoolQuery{Filter: filters},
+		},
+		From: &from,
+		Size: &size,
+	}
+
+	res, err := ai.client.Search().Index("anomalies").Request(req).Do(ctx)
+	if err != nil {
+		return nil, 0, fmt.Errorf("es search anomalies: %w", err)
+	}
+
+	var total int64
+	if res.Hits.Total != nil {
+		total = res.Hits.Total.Value
+	}
+
+	anomalies := make([]domain.Anomaly, 0, len(res.Hits.Hits))
+	for _, hit := range res.Hits.Hits {
+		var anomaly domain.Anomaly
+		if err := json.Unmarshal(hit.Source_, &anomaly); err != nil {
+			return nil, 0, fmt.Errorf("unmarshal anomaly: %w", err)
+		}
+		if hit.Id_ != nil {
+			anomaly.ID = *hit.Id_
+		}
+		anomalies = append(anomalies, anomaly)
+	}
+
+	return anomalies, total, nil
 }
 
-// GetAnomaly is not implemented in Phase 3; returns not-implemented error (Phase 4).
-func (ai *AnomalyIndexer) GetAnomaly(_ context.Context, _ string) (domain.Anomaly, error) {
-	return domain.Anomaly{}, errors.New("not implemented")
+// GetAnomaly retrieves a single anomaly by document ID using the ES Get API.
+// Returns domain.ErrNotFound if the document does not exist.
+func (ai *AnomalyIndexer) GetAnomaly(ctx context.Context, id string) (domain.Anomaly, error) {
+	res, err := ai.client.Get("anomalies", id).Do(ctx)
+	if err != nil {
+		return domain.Anomaly{}, fmt.Errorf("es get anomaly: %w", err)
+	}
+	if !res.Found {
+		return domain.Anomaly{}, domain.ErrNotFound
+	}
+
+	var anomaly domain.Anomaly
+	if err := json.Unmarshal(res.Source_, &anomaly); err != nil {
+		return domain.Anomaly{}, fmt.Errorf("unmarshal anomaly: %w", err)
+	}
+	anomaly.ID = res.Id_
+	return anomaly, nil
 }
 
 // Close flushes any buffered anomaly items and shuts down the bulk indexer workers.
