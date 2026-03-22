@@ -16,7 +16,7 @@ Build a production-grade, event-driven log analytics and anomaly detection syste
 
 - [x] **Phase 1: Foundation and Ingestion** - Go module scaffolding, domain types, interfaces, Kafka consumer, log parser, Zap logging, Prometheus metrics skeleton, and parser unit tests. (completed 2026-03-21)
 - [x] **Phase 2: Detection Engine** - Rule-based anomaly detection with sliding-window state, all seven detection rules, alert deduplication / cooldown, and config-driven thresholds in YAML. (completed 2026-03-21)
-- [ ] **Phase 3: Storage and Alerting** - Elasticsearch integration for logs and anomalies (index mappings applied at startup, BulkIndexer), and SMTP email alerting via go-mail with deduplication wired to cooldown state.
+- [x] **Phase 3: Storage and Alerting** - Elasticsearch integration for logs and anomalies (index mappings applied at startup, BulkIndexer), and SMTP email alerting via go-mail with deduplication wired to cooldown state. (completed 2026-03-22)
 - [ ] **Phase 4: REST API** - chi-based REST API covering log query endpoints, anomaly query endpoints, and health / readiness / metrics endpoints.
 - [ ] **Phase 5: Integration and Hardening** - End-to-end integration tests with testcontainers (real Kafka and Elasticsearch), graceful shutdown hardening, pipeline wiring validation, and setup README.
 
@@ -98,13 +98,13 @@ Plans:
 **Status:** Planned
 **Depends on**: Phase 2
 **Requirements**: STORE-01, STORE-02, STORE-03, STORE-04, ALERT-01, ALERT-02, ALERT-03
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 - [x] 03-01-PLAN.md — ES client constructor, index template setup, config extensions (ESConfig + SMTPConfig)
 - [x] 03-02-PLAN.md — Log and anomaly BulkIndexer (LogIndexer + AnomalyIndexer)
 - [x] 03-03-PLAN.md — SMTP email alerter (SMTPAlerter with async dispatch)
-- [ ] 03-04-PLAN.md — Alert dispatcher fan-out (anomaly -> storage + alerting)
+- [x] 03-04-PLAN.md — Alert dispatcher fan-out (anomaly -> storage + alerting)
 
 ### Plans (Detail)
 
@@ -201,7 +201,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Foundation and Ingestion | 5/5 | Complete   | 2026-03-21 |
 | 2. Detection Engine | 5/5 | Complete    | 2026-03-21 |
-| 3. Storage and Alerting | 3/4 | In Progress|  |
+| 3. Storage and Alerting | 4/4 | Complete   | 2026-03-22 |
 | 4. REST API | 0/4 | Not started | - |
 | 5. Integration and Hardening | 0/3 | Not started | - |
 

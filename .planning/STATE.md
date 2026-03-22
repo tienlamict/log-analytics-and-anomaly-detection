@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-storage-and-alerting/03-02-PLAN.md
-last_updated: "2026-03-22T02:03:00.000Z"
+stopped_at: Completed 03-storage-and-alerting/03-04-PLAN.md
+last_updated: "2026-03-22T02:06:43.594Z"
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 14
-  completed_plans: 13
+  completed_plans: 14
 ---
 
 # Project State
@@ -27,13 +27,13 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Phase:** 3
 **Milestone:** v1.0.0
-**Overall progress:** [█████████░] 93% — 13/14 plans complete
+**Overall progress:** [██████████] 100% — 14/14 plans complete
 
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | Foundation and Ingestion | Complete (05/05 plans done) |
 | 2 | Detection Engine | Complete (05/05 plans done) |
-| 3 | Storage and Alerting | Pending |
+| 3 | Storage and Alerting | Complete (04/04 plans done) |
 | 4 | REST API | Pending |
 | 5 | Integration and Hardening | Pending |
 
@@ -76,6 +76,8 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 | LogIndexer per-item Index override for daily rolling log indices | BulkIndexerConfig.Index="" and BulkIndexerItem.Index="logs-{YYYY.MM.DD}" enables daily indices without multiple indexer instances |
 | sha256(partition:offset) as LogEntry document ID | Deterministic ID enables idempotent Kafka replay — re-indexing the same offset overwrites, never duplicates |
 | AnomalyIndexer uses anomaly.ID (UUID) as document ID | UUID preserves semantic identity; DetectorEngine assigns UUIDs so anomalies are deduplicated by source |
+| No cooldown in Dispatcher (03-04) | Cooldown is handled upstream by DetectorEngine.Anomalies(); adding it in Dispatcher would suppress legitimate re-triggers |
+| Both IndexAnomaly and Send unconditional per anomaly (03-04) | Fan-out correctness requires both outputs receive every anomaly regardless of each other's error |
 
 ---
 
@@ -89,9 +91,9 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 ## Session Continuity
 
-**Last session:** 2026-03-22T02:03:00Z
-**Stopped at:** Completed 03-storage-and-alerting/03-02-PLAN.md
-**Next action:** Phase 03 plan 02 complete — continue with Phase 03 plan 03 (SMTP alerter)
+**Last session:** 2026-03-22T02:06:43Z
+**Stopped at:** Completed 03-storage-and-alerting/03-04-PLAN.md
+**Next action:** Phase 03 complete — continue with Phase 04 (REST API)
 
 ---
 
