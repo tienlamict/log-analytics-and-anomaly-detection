@@ -4,12 +4,12 @@ milestone: v1.0.0
 milestone_name: milestone
 status: unknown
 stopped_at: Completed 04-rest-api/04-04-PLAN.md
-last_updated: "2026-03-22T04:21:28.952Z"
+last_updated: "2026-03-22T06:32:18.965Z"
 progress:
   total_phases: 5
-  completed_phases: 4
-  total_plans: 18
-  completed_plans: 18
+  completed_phases: 5
+  total_plans: 19
+  completed_plans: 19
 ---
 
 # Project State
@@ -19,7 +19,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Detect anomalies in application logs in real-time and surface them via alerts and a queryable API — so problems are caught before users report them.
-**Current focus:** Phase 04 — rest-api
+**Current focus:** Phase 05 — integration-and-hardening
 
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Phase:** 5
 **Milestone:** v1.0.0
-**Overall progress:** [██████████] 100% — 18/18 plans complete
+**Overall progress:** [██████████] 100% — 19/19 plans complete
 
 | Phase | Name | Status |
 |-------|------|--------|
@@ -35,7 +35,7 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 | 2 | Detection Engine | Complete (05/05 plans done) |
 | 3 | Storage and Alerting | Complete (04/04 plans done) |
 | 4 | REST API | Complete (04/04 plans done) |
-| 5 | Integration and Hardening | Pending |
+| 5 | Integration and Hardening | In Progress (01/04 plans done) |
 
 ---
 
@@ -85,6 +85,10 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 | parseIntParam clamps out-of-range ints (04-02) | Values below min set to min, above max set to max; non-integer strings return 400; default page=1 size=20 max size=1000 max page=10000 |
 | Nil-guard in handleHealth (04-04) | if esClient==nil return 503 immediately; prevents nil-pointer panic when testing without a real ES client |
 | Vec metrics require label observation for Prometheus text output (04-04) | CounterVec/GaugeVec metrics only appear in scrape output after at least one label combination is observed; test calls WithLabelValues(...).Add(0) before /metrics request |
+| runPipeline extracted to wire.go (05-01) | Integration tests can import runPipeline directly without spawning subprocess; keeps main.go minimal |
+| LIFO shutdown order: apiServer.Shutdown → engine.Stop → indexer.Close (05-01) | HTTP drains active connections before indexer flushes buffered documents; prevents data loss on SIGTERM |
+| warmup_multiplier: 0 in integration test config (05-01) | Bypasses 10-minute warmup suppression so anomalies fire immediately in integration tests |
+| TestMain-scoped shared containers (05-01) | Starting containers per-test is 10-30x slower and causes port collision flakiness; TestMain scope is the standard pattern |
 
 ---
 
@@ -98,9 +102,9 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 ## Session Continuity
 
-**Last session:** 2026-03-22T04:35:00Z
-**Stopped at:** Completed 04-rest-api/04-04-PLAN.md
-**Next action:** Phase 04 complete — begin Phase 05 Integration and Hardening
+**Last session:** 2026-03-22T06:31:19Z
+**Stopped at:** Completed 05-integration-and-hardening/05-01-PLAN.md
+**Next action:** Continue Phase 05 — execute 05-02 pipeline integration tests
 
 ---
 

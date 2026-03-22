@@ -64,7 +64,7 @@
 ### Testing
 
 - [x] **TEST-01**: Unit tests for parser, detection rules, and alert deduplication logic (no external dependencies)
-- [ ] **TEST-02**: Integration tests using testcontainers (real Kafka + Elasticsearch) covering the end-to-end pipeline
+- [x] **TEST-02**: Integration tests using testcontainers (real Kafka + Elasticsearch) covering the end-to-end pipeline
 
 ---
 
@@ -119,7 +119,7 @@
 | STORE-01 – STORE-04 | Phase 3 | Pending |
 | ALERT-01 – ALERT-03 | Phase 3 | Pending |
 | API-01 – API-06 | Phase 4 | Pending |
-| TEST-02 | Phase 5 | Pending |
+| TEST-02 | Phase 5 | Complete |
 
 **Coverage:**
 - v1 requirements: 34 total

@@ -18,7 +18,7 @@ Build a production-grade, event-driven log analytics and anomaly detection syste
 - [x] **Phase 2: Detection Engine** - Rule-based anomaly detection with sliding-window state, all seven detection rules, alert deduplication / cooldown, and config-driven thresholds in YAML. (completed 2026-03-21)
 - [x] **Phase 3: Storage and Alerting** - Elasticsearch integration for logs and anomalies (index mappings applied at startup, BulkIndexer), and SMTP email alerting via go-mail with deduplication wired to cooldown state. (completed 2026-03-22)
 - [x] **Phase 4: REST API** - chi-based REST API covering log query endpoints, anomaly query endpoints, and health / readiness / metrics endpoints. (completed 2026-03-22)
-- [ ] **Phase 5: Integration and Hardening** - End-to-end integration tests with testcontainers (real Kafka and Elasticsearch), graceful shutdown hardening, pipeline wiring validation, and setup README.
+- [x] **Phase 5: Integration and Hardening** - End-to-end integration tests with testcontainers (real Kafka and Elasticsearch), graceful shutdown hardening, pipeline wiring validation, and setup README. (completed 2026-03-22)
 
 ---
 
@@ -210,7 +210,7 @@ Plans:
 | 2. Detection Engine | 5/5 | Complete    | 2026-03-21 |
 | 3. Storage and Alerting | 4/4 | Complete   | 2026-03-22 |
 | 4. REST API | 4/4 | Complete   | 2026-03-22 |
-| 5. Integration and Hardening | 0/3 | Not started | - |
+| 5. Integration and Hardening | 1/1 | Complete   | 2026-03-22 |
 
 ---
 
