@@ -8,7 +8,13 @@ import (
 
 // handleHealth pings Elasticsearch with a 3-second timeout.
 // Returns 200 {"status":"ok"} if ES responds, 503 {"error":"unhealthy"} otherwise.
+// If esClient is nil (e.g. in tests), returns 503 immediately without panicking.
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	if s.esClient == nil {
+		writeError(w, http.StatusServiceUnavailable, "unhealthy")
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 
