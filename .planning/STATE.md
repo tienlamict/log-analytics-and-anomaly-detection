@@ -4,12 +4,12 @@ milestone: v1.0.0
 milestone_name: milestone
 status: unknown
 stopped_at: Completed 04-rest-api/04-03-PLAN.md
-last_updated: "2026-03-22T04:08:38.702Z"
+last_updated: "2026-03-22T04:16:49.158Z"
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 18
-  completed_plans: 17
+  completed_plans: 18
 ---
 
 # Project State
@@ -27,14 +27,14 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Phase:** 4
 **Milestone:** v1.0.0
-**Overall progress:** [█████████░] 89% — 16/18 plans complete
+**Overall progress:** [██████████] 100% — 18/18 plans complete
 
 | Phase | Name | Status |
 |-------|------|--------|
 | 1 | Foundation and Ingestion | Complete (05/05 plans done) |
 | 2 | Detection Engine | Complete (05/05 plans done) |
 | 3 | Storage and Alerting | Complete (04/04 plans done) |
-| 4 | REST API | In Progress (02/04 plans done) |
+| 4 | REST API | Complete (04/04 plans done) |
 | 5 | Integration and Hardening | Pending |
 
 ---
@@ -83,6 +83,8 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 | detected_at field for anomaly time range (04-01) | anomalies index uses detected_at date field (not @timestamp) per the index template in setup.go |
 | atomic.Bool for Server.ready gate (04-01) | Single writer (SetReady), multiple reader goroutines; atomic avoids mutex overhead for a simple boolean flag |
 | parseIntParam clamps out-of-range ints (04-02) | Values below min set to min, above max set to max; non-integer strings return 400; default page=1 size=20 max size=1000 max page=10000 |
+| Nil-guard in handleHealth (04-04) | if esClient==nil return 503 immediately; prevents nil-pointer panic when testing without a real ES client |
+| Vec metrics require label observation for Prometheus text output (04-04) | CounterVec/GaugeVec metrics only appear in scrape output after at least one label combination is observed; test calls WithLabelValues(...).Add(0) before /metrics request |
 
 ---
 
@@ -96,9 +98,9 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 ## Session Continuity
 
-**Last session:** 2026-03-22T04:08:38.690Z
-**Stopped at:** Completed 04-rest-api/04-03-PLAN.md
-**Next action:** Phase 04 plan 02 complete — continue with 04-03 (anomaly query handlers)
+**Last session:** 2026-03-22T04:35:00Z
+**Stopped at:** Completed 04-rest-api/04-04-PLAN.md
+**Next action:** Phase 04 complete — begin Phase 05 Integration and Hardening
 
 ---
 
