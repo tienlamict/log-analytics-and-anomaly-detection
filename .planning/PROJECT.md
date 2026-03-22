@@ -19,8 +19,8 @@ Detect anomalies in application logs in real-time and surface them via alerts an
 ### Active
 
 - [ ] Consume application logs from a message queue (Kafka)
-- [ ] Persist raw logs and detected anomalies to Elasticsearch
-- [ ] Send email alerts when anomalies are detected
+- [x] Persist raw logs and detected anomalies to Elasticsearch — Validated in Phase 3: Storage and Alerting
+- [x] Send email alerts when anomalies are detected — Validated in Phase 3: Storage and Alerting
 - [ ] Expose REST API for querying logs and anomalies
 - [ ] End-to-end pipeline: ingest → process → detect → alert → store
 
@@ -55,8 +55,8 @@ Detect anomalies in application logs in real-time and surface them via alerts an
 |----------|-----------|---------|
 | Kafka as message queue | Natural fit for event-driven architecture; consumer groups allow multiple processors; supports replay | — Pending |
 | Rule-based detection only | Predictable, debuggable, sufficient for known anomaly patterns in v1 | Validated in Phase 2 — 7 rules implemented with sliding-window state, cooldown dedup, warm-up suppression |
-| Elasticsearch for storage | Supports full-text log search + time-range anomaly queries in one store | — Pending |
-| Email alerts for v1 | Simplest reliable channel; webhook/Slack added when routing logic is clearer | — Pending |
+| Elasticsearch for storage | Supports full-text log search + time-range anomaly queries in one store | Validated in Phase 3 — BulkIndexer with deterministic IDs, daily log indices, fixed anomaly index |
+| Email alerts for v1 | Simplest reliable channel; webhook/Slack added when routing logic is clearer | Validated in Phase 3 — go-mail v0.7.2, async dispatch via buffered channel, TLS policy mapping |
 
 ## Evolution
 
@@ -76,4 +76,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-21 after Phase 2: Detection Engine*
+*Last updated: 2026-03-22 after Phase 3: Storage and Alerting*
