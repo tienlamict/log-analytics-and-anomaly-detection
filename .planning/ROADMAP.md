@@ -133,15 +133,22 @@ Plans:
 ### Phase 4: REST API
 
 **Goal**: Expose a chi-based HTTP API that allows operators to query persisted logs and anomalies with filtering and pagination, and provides health, readiness, and Prometheus metrics endpoints for container orchestration.
-**Status:** Pending
+**Status:** Planned
 **Depends on**: Phase 3
 **Requirements**: API-01, API-02, API-03, API-04, API-05, API-06
+**Plans:** 4 plans
 
-### Plans
+Plans:
+- [ ] 04-01-PLAN.md — Foundation: chi router, middleware, health/ready/metrics, ES search/get implementations, ErrNotFound sentinel
+- [ ] 04-02-PLAN.md — Log query endpoints (GET /api/v1/logs, GET /api/v1/logs/{id})
+- [ ] 04-03-PLAN.md — Anomaly query endpoints (GET /api/v1/anomalies, GET /api/v1/anomalies/{id})
+- [ ] 04-04-PLAN.md — API handler unit tests (httptest, mock stores, goleak)
+
+### Plans (Detail)
 
 | # | Plan | Description |
 |---|------|-------------|
-| 04-01 | Router, middleware, and health endpoints | Initialise `github.com/go-chi/chi/v5` router in `internal/api`; apply `middleware.Recoverer`, `middleware.RequestID`, `middleware.Timeout`, and structured Zap request-logging middleware. Implement `GET /health` (returns 200 when Kafka and ES are reachable, 503 otherwise) and `GET /ready` (returns 200 once the pipeline is fully initialised). Mount `promhttp.Handler()` at `GET /metrics`. Run API server in its own goroutine under the shared `errgroup` context. |
+| 04-01 | Router, middleware, and health endpoints | Add chi v5.2.5 to go.mod; create `internal/api` package with chi router, middleware (Recoverer, RequestID, Timeout, Zap logger), health/ready/metrics handlers. Add `ErrNotFound` sentinel to domain. Add `APIConfig` to config. Implement `SearchLogs`, `GetLog`, `SearchAnomalies`, `GetAnomaly` in ES indexers (replacing stubs). |
 | 04-02 | Log query endpoints | Implement `GET /api/v1/logs`: query Elasticsearch `logs-*` with optional `?service=`, `?level=`, `?from=` (RFC 3339), `?to=`, and pagination via `?page=` / `?size=` (capped at 1000); return `{"data": [...], "total": N, "page": P, "size": S}`. Implement `GET /api/v1/logs/{id}`: retrieve a single log entry by ID; return 404 with a structured error body if not found. |
 | 04-03 | Anomaly query endpoints | Implement `GET /api/v1/anomalies`: query the `anomalies` index with optional `?type=`, `?service=`, `?severity=`, `?from=`, `?to=`, and pagination; return the same envelope structure as the log endpoint. Implement `GET /api/v1/anomalies/{id}`: retrieve a single anomaly by ID; return 404 with structured error body if not found. |
 | 04-04 | API handler unit tests | Unit-test all four query handlers using `httptest.NewRecorder` with mock `LogStore` and `AnomalyStore` implementations; cover valid queries, missing resources (404), invalid query parameters (400), and Elasticsearch error propagation (500). All tests run with `-race`. |
@@ -202,7 +209,7 @@ Plans:
 | 1. Foundation and Ingestion | 5/5 | Complete   | 2026-03-21 |
 | 2. Detection Engine | 5/5 | Complete    | 2026-03-21 |
 | 3. Storage and Alerting | 4/4 | Complete   | 2026-03-22 |
-| 4. REST API | 0/4 | Not started | - |
+| 4. REST API | 0/4 | Planned | - |
 | 5. Integration and Hardening | 0/3 | Not started | - |
 
 ---
@@ -214,7 +221,7 @@ Plans:
 | 1 | Foundation and Ingestion | 5 | INGEST-01-04, PARSE-01-04, OBS-01-02, TEST-01 | Planned |
 | 2 | Detection Engine | 5 | DETECT-01-10 | Planned |
 | 3 | Storage and Alerting | 4 | STORE-01-04, ALERT-01-03 | Planned |
-| 4 | REST API | 4 | API-01-06 | Pending |
+| 4 | REST API | 4 | API-01-06 | Planned |
 | 5 | Integration and Hardening | 3 | TEST-02 | Pending |
 
 **Total:** 5 phases, 21 plans, 34 v1 requirements mapped, 0 unmapped.
