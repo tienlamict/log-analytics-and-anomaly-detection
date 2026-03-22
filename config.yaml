@@ -56,3 +56,21 @@ detection:
       check_interval: "30s"   # heartbeat check frequency
       min_log_count: 5        # require 5 logs before tracking (cold-start guard)
       severity: "critical"
+
+elasticsearch:
+  addresses:
+    - "http://localhost:9200"
+  username: ""
+  password: ""
+  max_idle_conns: 10
+  response_timeout: "10s"
+
+smtp:
+  host: "localhost"
+  port: 587
+  username: ""
+  password: ""
+  from: "alerts@log-analytics.local"
+  recipients:
+    - "ops@example.com"
+  tls_policy: "mandatory"

@@ -2,16 +2,39 @@ package config
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/log-analytics/server/internal/detection"
 	"github.com/spf13/viper"
 )
 
 type Config struct {
-	Kafka     KafkaConfig              `mapstructure:"kafka"`
-	Metrics   MetricsConfig            `mapstructure:"metrics"`
-	Log       LogConfig                `mapstructure:"log"`
-	Detection detection.DetectionConfig `mapstructure:"detection"`
+	Kafka         KafkaConfig              `mapstructure:"kafka"`
+	Metrics       MetricsConfig            `mapstructure:"metrics"`
+	Log           LogConfig                `mapstructure:"log"`
+	Detection     detection.DetectionConfig `mapstructure:"detection"`
+	Elasticsearch ESConfig                  `mapstructure:"elasticsearch"`
+	SMTP          SMTPConfig                `mapstructure:"smtp"`
+}
+
+// ESConfig holds Elasticsearch connection configuration.
+type ESConfig struct {
+	Addresses       []string      `mapstructure:"addresses"`
+	Username        string        `mapstructure:"username"`
+	Password        string        `mapstructure:"password"`
+	MaxIdleConns    int           `mapstructure:"max_idle_conns"`
+	ResponseTimeout time.Duration `mapstructure:"response_timeout"`
+}
+
+// SMTPConfig holds SMTP email configuration.
+type SMTPConfig struct {
+	Host       string   `mapstructure:"host"`
+	Port       int      `mapstructure:"port"`
+	Username   string   `mapstructure:"username"`
+	Password   string   `mapstructure:"password"`
+	From       string   `mapstructure:"from"`
+	Recipients []string `mapstructure:"recipients"`
+	TLSPolicy  string   `mapstructure:"tls_policy"`
 }
 
 type KafkaConfig struct {
@@ -91,6 +114,17 @@ func Load() (Config, error) {
 	viper.SetDefault("detection.rules.service_silence.check_interval", "30s")
 	viper.SetDefault("detection.rules.service_silence.min_log_count", 5)
 	viper.SetDefault("detection.rules.service_silence.severity", "critical")
+
+	// Elasticsearch defaults
+	viper.SetDefault("elasticsearch.addresses", []string{"http://localhost:9200"})
+	viper.SetDefault("elasticsearch.max_idle_conns", 10)
+	viper.SetDefault("elasticsearch.response_timeout", "10s")
+
+	// SMTP defaults
+	viper.SetDefault("smtp.host", "localhost")
+	viper.SetDefault("smtp.port", 587)
+	viper.SetDefault("smtp.tls_policy", "mandatory")
+	viper.SetDefault("smtp.from", "alerts@log-analytics.local")
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
