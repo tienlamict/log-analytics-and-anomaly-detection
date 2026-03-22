@@ -61,7 +61,8 @@ func NewServer(
 
 	// API v1 sub-router — log and anomaly handlers registered by plans 04-02 and 04-03
 	r.Route("/api/v1", func(r chi.Router) {
-		// TODO(04-02): register GET /logs and GET /logs/{id}
+		r.Get("/logs", s.handleListLogs)
+		r.Get("/logs/{id}", s.handleGetLog)
 		// TODO(04-03): register GET /anomalies and GET /anomalies/{id}
 	})
 
