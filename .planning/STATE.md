@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-storage-and-alerting/03-03-PLAN.md
-last_updated: "2026-03-22T01:52:51.230Z"
+stopped_at: Completed 03-storage-and-alerting/03-01-PLAN.md
+last_updated: "2026-03-22T01:57:04.990Z"
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 14
-  completed_plans: 11
+  completed_plans: 12
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Phase:** 3
 **Milestone:** v1.0.0
-**Overall progress:** [████████░░] 79% — 11/14 plans complete
+**Overall progress:** [█████████░] 86% — 12/14 plans complete
 
 | Phase | Name | Status |
 |-------|------|--------|
@@ -71,6 +71,8 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 | No custom Viper DecodeHook for duration strings | Built-in StringToTimeDurationHookFunc handles "5m"->time.Duration; adding custom hook would override the default |
 | SMTPAlerter uses WithPort + WithTLSPolicy (not WithTLSPortPolicy) | Port is explicit in SMTPConfig; WithTLSPortPolicy auto-selects port and would conflict with the configured value |
 | SMTPAlerter queue-full drops return nil (non-fatal) with metric | Prevents dispatcher back-pressure from a transient SMTP buffer saturation event; failure is metered via EmailAlertsFailedTotal |
+| client.Indices is a struct field not a method on TypedClient | MethodIndices is a struct field on the embedded *typedapi.MethodAPI; use client.Indices.PutIndexTemplate() not client.Indices().PutIndexTemplate() |
+| X-Elastic-Product header required in mock ES transport responses | go-elasticsearch/v9 client validates this header before parsing; omitting it causes test failures unrelated to business logic |
 
 ---
 
@@ -84,8 +86,8 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 ## Session Continuity
 
-**Last session:** 2026-03-22T01:52:51.216Z
-**Stopped at:** Completed 03-storage-and-alerting/03-03-PLAN.md
+**Last session:** 2026-03-22T01:57:04.977Z
+**Stopped at:** Completed 03-storage-and-alerting/03-01-PLAN.md
 **Next action:** Phase 03 plan 03 complete — continue with Phase 03 plans 04 (alert dispatcher)
 
 ---

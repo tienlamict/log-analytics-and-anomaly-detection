@@ -98,10 +98,10 @@ Plans:
 **Status:** Planned
 **Depends on**: Phase 2
 **Requirements**: STORE-01, STORE-02, STORE-03, STORE-04, ALERT-01, ALERT-02, ALERT-03
-**Plans:** 1/4 plans executed
+**Plans:** 2/4 plans executed
 
 Plans:
-- [ ] 03-01-PLAN.md — ES client constructor, index template setup, config extensions (ESConfig + SMTPConfig)
+- [x] 03-01-PLAN.md — ES client constructor, index template setup, config extensions (ESConfig + SMTPConfig)
 - [ ] 03-02-PLAN.md — Log and anomaly BulkIndexer (LogIndexer + AnomalyIndexer)
 - [x] 03-03-PLAN.md — SMTP email alerter (SMTPAlerter with async dispatch)
 - [ ] 03-04-PLAN.md — Alert dispatcher fan-out (anomaly -> storage + alerting)
@@ -201,7 +201,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Foundation and Ingestion | 5/5 | Complete   | 2026-03-21 |
 | 2. Detection Engine | 5/5 | Complete    | 2026-03-21 |
-| 3. Storage and Alerting | 1/4 | In Progress|  |
+| 3. Storage and Alerting | 2/4 | In Progress|  |
 | 4. REST API | 0/4 | Not started | - |
 | 5. Integration and Hardening | 0/3 | Not started | - |
 
