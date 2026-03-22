@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-storage-and-alerting/03-01-PLAN.md
-last_updated: "2026-03-22T01:57:04.990Z"
+stopped_at: Completed 03-storage-and-alerting/03-02-PLAN.md
+last_updated: "2026-03-22T02:03:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 13
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Phase:** 3
 **Milestone:** v1.0.0
-**Overall progress:** [█████████░] 86% — 12/14 plans complete
+**Overall progress:** [█████████░] 93% — 13/14 plans complete
 
 | Phase | Name | Status |
 |-------|------|--------|
@@ -73,6 +73,9 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 | SMTPAlerter queue-full drops return nil (non-fatal) with metric | Prevents dispatcher back-pressure from a transient SMTP buffer saturation event; failure is metered via EmailAlertsFailedTotal |
 | client.Indices is a struct field not a method on TypedClient | MethodIndices is a struct field on the embedded *typedapi.MethodAPI; use client.Indices.PutIndexTemplate() not client.Indices().PutIndexTemplate() |
 | X-Elastic-Product header required in mock ES transport responses | go-elasticsearch/v9 client validates this header before parsing; omitting it causes test failures unrelated to business logic |
+| LogIndexer per-item Index override for daily rolling log indices | BulkIndexerConfig.Index="" and BulkIndexerItem.Index="logs-{YYYY.MM.DD}" enables daily indices without multiple indexer instances |
+| sha256(partition:offset) as LogEntry document ID | Deterministic ID enables idempotent Kafka replay — re-indexing the same offset overwrites, never duplicates |
+| AnomalyIndexer uses anomaly.ID (UUID) as document ID | UUID preserves semantic identity; DetectorEngine assigns UUIDs so anomalies are deduplicated by source |
 
 ---
 
@@ -86,9 +89,9 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 ## Session Continuity
 
-**Last session:** 2026-03-22T01:57:04.977Z
-**Stopped at:** Completed 03-storage-and-alerting/03-01-PLAN.md
-**Next action:** Phase 03 plan 03 complete — continue with Phase 03 plans 04 (alert dispatcher)
+**Last session:** 2026-03-22T02:03:00Z
+**Stopped at:** Completed 03-storage-and-alerting/03-02-PLAN.md
+**Next action:** Phase 03 plan 02 complete — continue with Phase 03 plan 03 (SMTP alerter)
 
 ---
 

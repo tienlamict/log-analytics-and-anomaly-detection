@@ -36,10 +36,10 @@
 
 ### Storage
 
-- [ ] **STORE-01**: Raw log entries are indexed to Elasticsearch (`logs-{YYYY.MM.DD}` daily-rollover index) via bulk indexer
-- [ ] **STORE-02**: Detected anomalies are indexed to a separate Elasticsearch index (`anomalies`)
+- [x] **STORE-01**: Raw log entries are indexed to Elasticsearch (`logs-{YYYY.MM.DD}` daily-rollover index) via bulk indexer
+- [x] **STORE-02**: Detected anomalies are indexed to a separate Elasticsearch index (`anomalies`)
 - [x] **STORE-03**: Elasticsearch index mappings are applied at startup (self-contained deployment, no manual DevOps setup)
-- [ ] **STORE-04**: Bulk indexer write failures are logged and metered; pipeline continues processing
+- [x] **STORE-04**: Bulk indexer write failures are logged and metered; pipeline continues processing
 
 ### Alerting
 
