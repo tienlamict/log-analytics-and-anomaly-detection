@@ -136,12 +136,12 @@ Plans:
 **Status:** Planned
 **Depends on**: Phase 3
 **Requirements**: API-01, API-02, API-03, API-04, API-05, API-06
-**Plans:** 2/4 plans executed
+**Plans:** 3/4 plans executed
 
 Plans:
 - [x] 04-01-PLAN.md — Foundation: chi router, middleware, health/ready/metrics, ES search/get implementations, ErrNotFound sentinel
 - [x] 04-02-PLAN.md — Log query endpoints (GET /api/v1/logs, GET /api/v1/logs/{id})
-- [ ] 04-03-PLAN.md — Anomaly query endpoints (GET /api/v1/anomalies, GET /api/v1/anomalies/{id})
+- [x] 04-03-PLAN.md — Anomaly query endpoints (GET /api/v1/anomalies, GET /api/v1/anomalies/{id})
 - [ ] 04-04-PLAN.md — API handler unit tests (httptest, mock stores, goleak)
 
 ### Plans (Detail)
@@ -209,7 +209,7 @@ Plans:
 | 1. Foundation and Ingestion | 5/5 | Complete   | 2026-03-21 |
 | 2. Detection Engine | 5/5 | Complete    | 2026-03-21 |
 | 3. Storage and Alerting | 4/4 | Complete   | 2026-03-22 |
-| 4. REST API | 2/4 | In Progress|  |
+| 4. REST API | 3/4 | In Progress|  |
 | 5. Integration and Hardening | 0/3 | Not started | - |
 
 ---
