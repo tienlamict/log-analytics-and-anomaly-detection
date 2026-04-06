@@ -1,3 +1,4 @@
 .env
 *.log
 .claude/
+optimization.md

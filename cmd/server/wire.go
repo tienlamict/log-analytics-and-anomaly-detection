@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/sync/errgroup"
 	"go.uber.org/zap"
 
@@ -136,6 +138,20 @@ func runPipeline(ctx context.Context, cfg config.Config, logger *zap.Logger) err
 		return nil
 	})
 
+	// Metrics server (separate port, not exposed on public API)
+	metricsMux := http.NewServeMux()
+	metricsMux.Handle("/metrics", promhttp.Handler())
+	metricsServer := &http.Server{
+		Addr:    fmt.Sprintf(":%d", cfg.Metrics.Port),
+		Handler: metricsMux,
+	}
+	g.Go(func() error {
+		if err := metricsServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+		return nil
+	})
+
 	// Shutdown watcher — LIFO order
 	g.Go(func() error {
 		<-gCtx.Done()
@@ -143,6 +159,9 @@ func runPipeline(ctx context.Context, cfg config.Config, logger *zap.Logger) err
 		defer cancel()
 		if err := apiServer.Shutdown(shutdownCtx); err != nil {
 			logger.Warn("api server shutdown error", zap.Error(err))
+		}
+		if err := metricsServer.Shutdown(shutdownCtx); err != nil {
+			logger.Warn("metrics server shutdown error", zap.Error(err))
 		}
 		engine.Stop()
 		if err := logIndexer.Close(shutdownCtx); err != nil {

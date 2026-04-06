@@ -23,7 +23,7 @@ func ApplyIndexTemplates(ctx context.Context, client *elasticsearch.TypedClient)
 func applyLogsTemplate(ctx context.Context, client *elasticsearch.TypedClient) error {
 	falseMapping := dynamicmapping.False
 	trueVal := true
-	priority := int64(100)
+	priority := int64(200)
 
 	req := &putindextemplate.Request{
 		IndexPatterns: []string{"logs-*"},
