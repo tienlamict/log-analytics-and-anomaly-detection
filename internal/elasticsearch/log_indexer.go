@@ -33,8 +33,8 @@ func NewLogIndexer(client *elasticsearch.TypedClient, logger *zap.Logger) (*LogI
 	indexer, err := esutil.NewBulkIndexer(esutil.BulkIndexerConfig{
 		Client:        client,
 		Index:         "", // set per-item
-		NumWorkers:    2,
-		FlushBytes:    5_000_000,
+		NumWorkers:    4,
+		FlushBytes:    10_000_000,
 		FlushInterval: 5 * time.Second,
 		OnError: func(ctx context.Context, err error) {
 			logger.Error("bulk indexer error", zap.Error(err))

@@ -65,7 +65,7 @@ func NewDetectorEngine(detectors []domain.Detector, cfg DetectionConfig, logger 
 		cooldownDur: cfg.CooldownDuration,
 		warmupUntil: time.Now().Add(time.Duration(warmupMultiplier) * maxWindow),
 		logger:      logger,
-		out:         make(chan domain.Anomaly, 256),
+		out:         make(chan domain.Anomaly, 1024),
 		evictStop:   make(chan struct{}),
 	}
 

@@ -24,11 +24,19 @@ func applyLogsTemplate(ctx context.Context, client *elasticsearch.TypedClient) e
 	falseMapping := dynamicmapping.False
 	trueVal := true
 	priority := int64(200)
+	zeroReplicas := "0"
+	refreshInterval := types.Duration("5s")
 
 	req := &putindextemplate.Request{
 		IndexPatterns: []string{"logs-*"},
 		Priority:      &priority,
 		Template: &types.IndexTemplateMapping{
+			Settings: &types.IndexSettings{
+				// 0 replicas: single-node setup, replicas are unused overhead
+				NumberOfReplicas: &zeroReplicas,
+				// 5s refresh: reduces segment creation 5× vs default 1s, improves write throughput
+				RefreshInterval: &refreshInterval,
+			},
 			Mappings: &types.TypeMapping{
 				Dynamic: &falseMapping,
 				Properties: map[string]types.Property{

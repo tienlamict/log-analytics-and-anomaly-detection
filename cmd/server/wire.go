@@ -104,20 +104,26 @@ func runPipeline(ctx context.Context, cfg config.Config, logger *zap.Logger) err
 		return consumer.Run(gCtx)
 	})
 
-	// Pipeline worker: parse → index log → evaluate for anomalies
-	g.Go(func() error {
-		for msg := range consumer.Messages() {
-			entry, err := pipeline.Parse(msg)
-			if err != nil {
-				logger.Warn("parse error, using fallback entry", zap.Error(err))
+	// Pipeline workers: parse → index log → evaluate for anomalies.
+	// 4 workers saturate the i5's physical cores while leaving threads free
+	// for the Kafka consumer and ES bulk flush goroutines.
+	// Safe: consumer.Messages() is a channel (Go distributes range across goroutines),
+	// logIndexer is internally goroutine-safe, and engine.Evaluate is documented safe.
+	for range 4 {
+		g.Go(func() error {
+			for msg := range consumer.Messages() {
+				entry, err := pipeline.Parse(msg)
+				if err != nil {
+					logger.Warn("parse error, using fallback entry", zap.Error(err))
+				}
+				if indexErr := logIndexer.IndexLog(gCtx, entry); indexErr != nil {
+					logger.Warn("index log error", zap.Error(indexErr))
+				}
+				engine.Evaluate(entry)
 			}
-			if indexErr := logIndexer.IndexLog(gCtx, entry); indexErr != nil {
-				logger.Warn("index log error", zap.Error(indexErr))
-			}
-			engine.Evaluate(entry)
-		}
-		return nil
-	})
+			return nil
+		})
+	}
 
 	// Anomaly dispatcher
 	g.Go(func() error {

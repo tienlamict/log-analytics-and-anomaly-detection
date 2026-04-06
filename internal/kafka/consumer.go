@@ -29,7 +29,7 @@ func New(cfg config.KafkaConfig, logger *zap.Logger) (*Consumer, error) {
 		initialOffset = kgo.NewOffset().AtStart()
 	}
 
-	out := make(chan domain.RawMessage, 1000)
+	out := make(chan domain.RawMessage, 10000)
 
 	onRevoked := func(ctx context.Context, cl *kgo.Client, _ map[string][]int32) {
 		if err := cl.CommitMarkedOffsets(ctx); err != nil {
@@ -45,6 +45,9 @@ func New(cfg config.KafkaConfig, logger *zap.Logger) (*Consumer, error) {
 		kgo.AutoCommitMarks(),
 		kgo.OnPartitionsRevoked(onRevoked),
 		kgo.WithLogger(kzap.New(logger)),
+		kgo.FetchMaxBytes(10<<20),         // 10 MB max per fetch — reduces fetch round-trips under burst
+		kgo.FetchMaxPartitionBytes(1<<20), // 1 MB per partition
+		kgo.MaxConcurrentFetches(3),       // parallel fetch requests to saturate Kafka I/O
 	)
 	if err != nil {
 		return nil, err

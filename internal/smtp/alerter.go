@@ -63,7 +63,7 @@ func NewSMTPAlerter(cfg SMTPConfig, logger *zap.Logger) (*SMTPAlerter, error) {
 		client: client,
 		cfg:    cfg,
 		logger: logger,
-		queue:  make(chan domain.Anomaly, 100),
+		queue:  make(chan domain.Anomaly, 500),
 	}, nil
 }
 

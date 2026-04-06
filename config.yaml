@@ -13,7 +13,7 @@ log:
 
 detection:
   window_duration: "5m"
-  eviction_interval: "1m"
+  eviction_interval: "30s"
   cooldown_duration: "15m"
   warmup_multiplier: 2
   rules:
@@ -62,8 +62,8 @@ elasticsearch:
     - "http://localhost:9200"
   username: ""
   password: ""
-  max_idle_conns: 10
-  response_timeout: "10s"
+  max_idle_conns: 50
+  response_timeout: "15s"
 
 smtp:
   host: "localhost"
