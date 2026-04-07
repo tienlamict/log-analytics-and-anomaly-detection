@@ -100,7 +100,7 @@ func TestDispatcher_AlertFailure_IndexStillDone(t *testing.T) {
 	close(ch)
 
 	store := &mockAnomalyStore{}
-	alert := &mockAlertChannel{err: errors.New("smtp down")}
+	alert := &mockAlertChannel{err: errors.New("alert channel down")}
 	d := NewDispatcher(ch, store, alert, zap.NewNop())
 
 	if err := d.Run(context.Background()); err != nil {

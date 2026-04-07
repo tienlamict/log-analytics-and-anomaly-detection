@@ -18,8 +18,8 @@ import (
 	"github.com/log-analytics/server/internal/domain"
 	es "github.com/log-analytics/server/internal/elasticsearch"
 	"github.com/log-analytics/server/internal/kafka"
+	"github.com/log-analytics/server/internal/metrics"
 	"github.com/log-analytics/server/internal/pipeline"
-	"github.com/log-analytics/server/internal/smtp"
 )
 
 // runPipeline wires all pipeline components and runs them until ctx is cancelled
@@ -74,29 +74,13 @@ func runPipeline(ctx context.Context, cfg config.Config, logger *zap.Logger) err
 
 	engine := detection.NewDetectorEngine(detectors, cfg.Detection, logger)
 
-	// 4. SMTP alerter
-	smtpCfg := smtp.SMTPConfig{
-		Host:       cfg.SMTP.Host,
-		Port:       cfg.SMTP.Port,
-		Username:   cfg.SMTP.Username,
-		Password:   cfg.SMTP.Password,
-		From:       cfg.SMTP.From,
-		Recipients: cfg.SMTP.Recipients,
-		TLSPolicy:  cfg.SMTP.TLSPolicy,
-	}
+	// 4. Alert dispatcher (no push channel — Grafana scrapes Prometheus metrics)
+	dispatcher := alert.NewDispatcher(engine.Anomalies(), anomalyIndexer, nil, logger)
 
-	alerter, err := smtp.NewSMTPAlerter(smtpCfg, logger)
-	if err != nil {
-		return err
-	}
-
-	// 5. Alert dispatcher
-	dispatcher := alert.NewDispatcher(engine.Anomalies(), anomalyIndexer, alerter, logger)
-
-	// 6. API server
+	// 5. API server
 	apiServer := api.NewServer(logIndexer, anomalyIndexer, esClient, logger, cfg.API.Port)
 
-	// 7. Wire errgroup goroutines
+	// 6. Wire errgroup goroutines
 	g, gCtx := errgroup.WithContext(ctx)
 
 	// Kafka consumer
@@ -112,14 +96,20 @@ func runPipeline(ctx context.Context, cfg config.Config, logger *zap.Logger) err
 	for range 4 {
 		g.Go(func() error {
 			for msg := range consumer.Messages() {
-				entry, err := pipeline.Parse(msg)
-				if err != nil {
-					logger.Warn("parse error, using fallback entry", zap.Error(err))
-				}
+				start := time.Now()
+
+				// ProcessMessage parses and increments parse_errors_total on failure.
+				entry := pipeline.ProcessMessage(msg, logger)
+				metrics.LogsConsumedTotal.WithLabelValues(
+					msg.Topic, fmt.Sprintf("%d", msg.Partition),
+				).Inc()
+
 				if indexErr := logIndexer.IndexLog(gCtx, entry); indexErr != nil {
 					logger.Warn("index log error", zap.Error(indexErr))
 				}
 				engine.Evaluate(entry)
+
+				metrics.LogsProcessedDuration.Observe(time.Since(start).Seconds())
 			}
 			return nil
 		})
@@ -128,12 +118,6 @@ func runPipeline(ctx context.Context, cfg config.Config, logger *zap.Logger) err
 	// Anomaly dispatcher
 	g.Go(func() error {
 		return dispatcher.Run(gCtx)
-	})
-
-	// SMTP alerter
-	g.Go(func() error {
-		alerter.Run(gCtx)
-		return nil
 	})
 
 	// API server
@@ -179,10 +163,10 @@ func runPipeline(ctx context.Context, cfg config.Config, logger *zap.Logger) err
 		return nil
 	})
 
-	// 8. Mark API server ready after all setup
+	// 7. Mark API server ready after all setup
 	apiServer.SetReady()
 
-	// 9. Wait for all goroutines; filter out context.Canceled
+	// 8. Wait for all goroutines; filter out context.Canceled
 	if err := g.Wait(); err != nil && !errors.Is(err, context.Canceled) {
 		return err
 	}

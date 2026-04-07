@@ -19,7 +19,6 @@ type Config struct {
 	Log           LogConfig                `mapstructure:"log"`
 	Detection     detection.DetectionConfig `mapstructure:"detection"`
 	Elasticsearch ESConfig                  `mapstructure:"elasticsearch"`
-	SMTP          SMTPConfig                `mapstructure:"smtp"`
 	API           APIConfig                 `mapstructure:"api"`
 }
 
@@ -30,17 +29,6 @@ type ESConfig struct {
 	Password        string        `mapstructure:"password"`
 	MaxIdleConns    int           `mapstructure:"max_idle_conns"`
 	ResponseTimeout time.Duration `mapstructure:"response_timeout"`
-}
-
-// SMTPConfig holds SMTP email configuration.
-type SMTPConfig struct {
-	Host       string   `mapstructure:"host"`
-	Port       int      `mapstructure:"port"`
-	Username   string   `mapstructure:"username"`
-	Password   string   `mapstructure:"password"`
-	From       string   `mapstructure:"from"`
-	Recipients []string `mapstructure:"recipients"`
-	TLSPolicy  string   `mapstructure:"tls_policy"`
 }
 
 type KafkaConfig struct {
@@ -128,12 +116,6 @@ func Load() (Config, error) {
 
 	// API defaults
 	viper.SetDefault("api.port", 8080)
-
-	// SMTP defaults
-	viper.SetDefault("smtp.host", "localhost")
-	viper.SetDefault("smtp.port", 587)
-	viper.SetDefault("smtp.tls_policy", "mandatory")
-	viper.SetDefault("smtp.from", "alerts@log-analytics.local")
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {

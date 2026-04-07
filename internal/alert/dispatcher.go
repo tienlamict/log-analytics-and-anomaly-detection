@@ -49,13 +49,15 @@ func (d *Dispatcher) Run(ctx context.Context) error {
 				)
 				// do not return — continue dispatching
 			}
-			if err := d.alertChannel.Send(ctx, anomaly); err != nil {
-				d.logger.Error("alert send failed",
-					zap.Error(err),
-					zap.String("anomaly_id", anomaly.ID),
-					zap.String("rule_id", anomaly.RuleID),
-				)
-				// do not return — continue dispatching
+			if d.alertChannel != nil {
+				if err := d.alertChannel.Send(ctx, anomaly); err != nil {
+					d.logger.Error("alert send failed",
+						zap.Error(err),
+						zap.String("anomaly_id", anomaly.ID),
+						zap.String("rule_id", anomaly.RuleID),
+					)
+					// do not return — continue dispatching
+				}
 			}
 		case <-ctx.Done():
 			return ctx.Err()

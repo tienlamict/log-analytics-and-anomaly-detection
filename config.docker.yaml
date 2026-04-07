@@ -65,12 +65,3 @@ elasticsearch:
   max_idle_conns: 50
   response_timeout: "15s"
 
-smtp:
-  host: "mailhog"
-  port: 1025
-  username: ""
-  password: ""
-  from: "alerts@log-analytics.local"
-  recipients:
-    - "ops@example.com"
-  tls_policy: "none"

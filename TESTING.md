@@ -310,20 +310,31 @@ curl "http://localhost:9200/logs-$(date +%Y.%m.%d)/_mapping?pretty"
 
 ---
 
-## 7. Check Email Alerts (MailHog)
+## 7. Check Grafana Dashboards
 
-Open **http://localhost:8025** in your browser.
+Open **http://localhost:3000** (admin / admin) in your browser.
 
-After anomalies are detected, you should see emails with:
-- Subject containing the rule name and severity
-- Body with service name, description, and evidence
+The **Log Analytics & Anomaly Detection** dashboard is pre-provisioned with 7 panels:
+
+| Panel | Shows |
+|---|---|
+| Log Ingestion Rate | Kafka messages/s arriving |
+| Processing Latency (p50/p95/p99) | End-to-end pipeline latency |
+| Anomaly Detection Rate | Anomalies/s by rule type |
+| Anomalies by Rule (Total) | Pie chart of all-time anomaly counts |
+| Kafka Consumer Lag | Backlog depth per partition |
+| Elasticsearch Write Errors | ES failures in last 1h (red ≥ 10) |
+| Parse Errors | Parse failures in last 1h (red ≥ 50) |
+
+**Grafana alert rules** can be added directly in the UI against any panel expression —
+for example, alert when `rate(anomalies_detected_total[5m]) > 0`.
 
 ---
 
 ## 8. Check Prometheus Metrics
 
 ```bash
-curl -s http://localhost:2112/metrics | grep -E "logs_|anomalies_|es_write_|alerts_"
+curl -s http://localhost:2112/metrics | grep -E "logs_|anomalies_|es_write_|parse_|kafka_"
 ```
 
 Key metrics to verify:
@@ -331,14 +342,57 @@ Key metrics to verify:
 | Metric | Expect |
 |---|---|
 | `logs_consumed_total` | increments as Kafka messages arrive |
-| `logs_processed_total` | should match consumed |
-| `anomalies_detected_total` | increments per anomaly |
-| `alerts_sent_total` | increments per email sent |
-| `es_write_errors_total` | should stay at 0 |
+| `anomalies_detected_total{rule=…}` | increments per anomaly rule fired |
+| `kafka_consumer_lag` | should trend toward 0 |
+| `elasticsearch_write_errors_total` | should stay at 0 |
+| `parse_errors_total` | should stay near 0 for well-formed JSON |
 
 ---
 
-## 9. Check Application Logs
+## 9. High-Load System Test
+
+The automated high-load test spins up real Kafka and Elasticsearch containers via testcontainers,
+produces 10,000 messages, and verifies all 5 anomaly rules fire under concurrent load.
+
+```bash
+go test -v -tags integration ./internal/integration/ -run TestHighLoad -timeout 5m
+```
+
+**Message mix (10,000 total):**
+
+| Scenario | Count | Expected Rule |
+|---|---|---|
+| Normal info/warn logs | 9,490 | (baseline traffic) |
+| Errors from `payment-service` | 200 | `error_rate_spike` |
+| Mixed-latency to `api-gateway` (50% slow) | 200 | `latency_threshold` |
+| Auth failures from same IP | 50 | `auth_failure_burst` |
+| Identical errors from `order-service` | 50 | `repeated_failure` |
+| `/admin` access at 02:00 UTC | 10 | `off_hours_access` |
+
+**Assertions:**
+- Producer throughput ≥ 500 msg/s
+- All 5 rules fire at least once
+- Parse error rate < 1%
+
+**Sample output:**
+```
+load test summary
+  total messages    : 10000
+  produce duration  : 1.23s
+  produce rate      : 8130 msg/s
+  pipeline processed: 10000
+  parse errors      : 0 (0.00%)
+  anomaly rule deltas:
+    error_rate_spike          +1
+    latency_threshold         +1
+    auth_failure_burst        +1
+    repeated_failure          +1
+    off_hours_access          +10
+```
+
+---
+
+## 10. Check Application Logs
 
 ```bash
 # Live stream
@@ -352,18 +406,18 @@ docker-compose logs app | grep -i "warmup"
 
 ---
 
-## 10. Warmup Period Verification
+## 11. Warmup Period Verification
 
 On first startup the detection engine suppresses anomalies for `2 × window_duration = 10 minutes`. To verify:
 
 1. Start the stack fresh (`docker-compose down -v && docker-compose up -d`)
 2. Immediately produce 10+ error logs
-3. For the first ~10 min: no anomalies should appear in ES or MailHog
+3. For the first ~10 min: no anomalies should appear in ES or Grafana
 4. After 10 min: produce more errors — anomalies should now appear
 
 ---
 
-## 11. Cooldown Verification
+## 12. Cooldown Verification
 
 After an anomaly fires for `(rule, service)`:
 
@@ -379,7 +433,8 @@ After an anomaly fires for `(rule, service)`:
 | Component | URL |
 |---|---|
 | REST API | http://localhost:8080 |
-| Elasticsearch | http://localhost:9200 |
-| MailHog UI | http://localhost:8025 |
 | Prometheus metrics | http://localhost:2112/metrics |
+| Grafana dashboards | http://localhost:3000 (admin/admin) |
+| Prometheus UI | http://localhost:9090 |
+| Elasticsearch | http://localhost:9200 |
 | Kafka (external) | localhost:9092 |

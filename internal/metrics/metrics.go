@@ -32,16 +32,6 @@ var (
 		Help: "Elasticsearch bulk indexer write failures.",
 	})
 
-	EmailAlertsSentTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "email_alerts_sent_total",
-		Help: "Successful email alert deliveries.",
-	})
-
-	EmailAlertsFailedTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "email_alerts_failed_total",
-		Help: "Failed email alert deliveries.",
-	})
-
 	KafkaConsumerLag = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "kafka_consumer_lag",
@@ -62,8 +52,6 @@ func init() {
 		LogsProcessedDuration,
 		AnomaliesDetectedTotal,
 		ESWriteErrorsTotal,
-		EmailAlertsSentTotal,
-		EmailAlertsFailedTotal,
 		KafkaConsumerLag,
 		ParseErrorsTotal,
 	)

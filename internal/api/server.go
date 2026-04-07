@@ -10,6 +10,7 @@ import (
 	elasticsearch "github.com/elastic/go-elasticsearch/v9"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 
 	"github.com/log-analytics/server/internal/domain"
@@ -56,6 +57,7 @@ func NewServer(
 	// Infrastructure routes
 	r.Get("/health", s.handleHealth)
 	r.Get("/ready", s.handleReady)
+	r.Handle("/metrics", promhttp.Handler())
 
 	// API v1 sub-router — log and anomaly handlers
 	r.Route("/api/v1", func(r chi.Router) {
