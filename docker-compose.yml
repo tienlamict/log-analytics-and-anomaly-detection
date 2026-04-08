@@ -60,6 +60,18 @@ services:
       timeout: 5s
       retries: 12
 
+  # ── Kafka topic init ─────────────────────────────────────────────────────────
+  kafka-init:
+    image: confluentinc/confluent-local:7.5.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: >
+      bash -c "kafka-topics --bootstrap-server kafka:29092
+        --create --if-not-exists --topic application-logs
+        --partitions 3 --replication-factor 1"
+    restart: "no"
+
   # ── Prometheus ───────────────────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v3.4.0
@@ -113,6 +125,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ready || exit 1"]
       interval: 5s

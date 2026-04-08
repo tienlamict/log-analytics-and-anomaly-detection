@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kzap"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/log-analytics/server/internal/config"
 	"github.com/log-analytics/server/internal/domain"
+	"github.com/log-analytics/server/internal/metrics"
 )
 
 // Consumer implements domain.MessageConsumer using franz-go with at-least-once semantics.
@@ -76,6 +78,16 @@ func (c *Consumer) Run(ctx context.Context) error {
 				zap.Int32("partition", p),
 				zap.Error(err),
 			)
+		})
+		fetches.EachPartition(func(ftp kgo.FetchTopicPartition) {
+			partition := fmt.Sprintf("%d", ftp.Partition)
+			if len(ftp.Records) == 0 {
+				metrics.KafkaConsumerLag.WithLabelValues(ftp.Topic, partition).Set(0)
+				return
+			}
+			last := ftp.Records[len(ftp.Records)-1]
+			lag := float64(ftp.HighWatermark - last.Offset - 1)
+			metrics.KafkaConsumerLag.WithLabelValues(ftp.Topic, partition).Set(lag)
 		})
 		fetches.EachRecord(func(r *kgo.Record) {
 			msg := domain.RawMessage{

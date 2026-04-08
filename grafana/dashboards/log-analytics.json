@@ -13,7 +13,7 @@
       "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
       "targets": [
         {
-          "datasource": "Prometheus",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "sum(rate(logs_consumed_total[1m]))",
           "legendFormat": "logs/s"
         }
@@ -32,17 +32,17 @@
       "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
       "targets": [
         {
-          "datasource": "Prometheus",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "histogram_quantile(0.50, rate(logs_processed_duration_seconds_bucket[5m]))",
           "legendFormat": "p50"
         },
         {
-          "datasource": "Prometheus",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "histogram_quantile(0.95, rate(logs_processed_duration_seconds_bucket[5m]))",
           "legendFormat": "p95"
         },
         {
-          "datasource": "Prometheus",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "histogram_quantile(0.99, rate(logs_processed_duration_seconds_bucket[5m]))",
           "legendFormat": "p99"
         }
@@ -61,7 +61,7 @@
       "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
       "targets": [
         {
-          "datasource": "Prometheus",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "rate(anomalies_detected_total[5m])",
           "legendFormat": "{{rule}}"
         }
@@ -80,7 +80,7 @@
       "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
       "targets": [
         {
-          "datasource": "Prometheus",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "sum by(rule) (anomalies_detected_total)",
           "legendFormat": "{{rule}}"
         }
@@ -98,7 +98,7 @@
       "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
       "targets": [
         {
-          "datasource": "Prometheus",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "kafka_consumer_lag",
           "legendFormat": "{{topic}} / partition {{partition}}"
         }
@@ -117,7 +117,7 @@
       "gridPos": { "x": 12, "y": 16, "w": 6, "h": 4 },
       "targets": [
         {
-          "datasource": "Prometheus",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "increase(elasticsearch_write_errors_total[1h])",
           "legendFormat": "errors (1h)"
         }
@@ -143,7 +143,7 @@
       "gridPos": { "x": 18, "y": 16, "w": 6, "h": 4 },
       "targets": [
         {
-          "datasource": "Prometheus",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "increase(parse_errors_total[1h])",
           "legendFormat": "errors (1h)"
         }
