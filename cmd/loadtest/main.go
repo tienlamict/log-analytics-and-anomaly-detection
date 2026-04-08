@@ -25,6 +25,7 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -318,37 +319,61 @@ func main() {
 		}
 	}()
 
-	fmt.Printf("load test start  broker=%s  topic=%s  rate=%d msg/s  duration=%s\n",
-		*flagBroker, *flagTopic, *flagRate, *flagDuration)
+	// Number of parallel producer goroutines.
+	// Each goroutine fires a 100 ms ticker and sends batchSize messages per tick.
+	// Using multiple workers ensures JSON encoding never becomes the bottleneck.
+	const (
+		tickInterval = 100 * time.Millisecond
+		numWorkers   = 4
+	)
+
+	fmt.Printf("load test start  broker=%s  topic=%s  rate=%d msg/s  workers=%d  duration=%s\n",
+		*flagBroker, *flagTopic, *flagRate, numWorkers, *flagDuration)
 	printPhaseSchedule(phases)
 
-	for time.Now().Before(deadline) {
-		if ctx.Err() != nil {
-			break
-		}
+	var wg sync.WaitGroup
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ticker := time.NewTicker(tickInterval)
+			defer ticker.Stop()
 
-		elapsed := time.Since(startTime)
-		p := currentPhase(phases, elapsed)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					if time.Now().After(deadline) {
+						return
+					}
+					elapsed := time.Since(startTime)
+					p := currentPhase(phases, elapsed)
 
-		effectiveRate := float64(*flagRate) * p.rateMultiplier
-		interval := time.Duration(float64(time.Second) / effectiveRate)
+					// Messages this worker should send per tick.
+					// Total rate is split across workers; rateMultiplier scales the whole pool.
+					effectiveRate := float64(*flagRate) * p.rateMultiplier
+					batchSize := int(effectiveRate * tickInterval.Seconds() / float64(numWorkers))
+					if batchSize < 1 {
+						batchSize = 1
+					}
 
-		msg := p.generate()
-		payload := encode(msg)
-
-		client.Produce(ctx, &kgo.Record{Value: payload}, func(r *kgo.Record, err error) {
-			if err != nil {
-				dropped.Add(1)
-			} else {
-				sent.Add(1)
+					for i := 0; i < batchSize; i++ {
+						payload := encode(p.generate())
+						client.Produce(ctx, &kgo.Record{Value: payload}, func(_ *kgo.Record, err error) {
+							if err != nil {
+								dropped.Add(1)
+							} else {
+								sent.Add(1)
+							}
+						})
+					}
+				}
 			}
-		})
-
-		select {
-		case <-ctx.Done():
-		case <-time.After(interval):
-		}
+		}()
 	}
+
+	wg.Wait()
 
 	// Flush remaining buffered records.
 	flushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
