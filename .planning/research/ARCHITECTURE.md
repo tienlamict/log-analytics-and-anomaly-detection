@@ -2,6 +2,7 @@
 
 **Project:** Log Analytics and Anomaly Detection
 **Researched:** 2026-03-21
+**Updated:** 2026-04-08 — removed SMTP email alerting; added Prometheus metrics server and Grafana observability stack
 **Confidence:** HIGH — Go pipeline patterns are well-established; specific library APIs verified against pkg.go.dev
 
 ---
@@ -9,16 +10,20 @@
 ## High-Level Architecture
 
 ```
-┌─────────────┐      ┌──────────────────────────────────────────────────────────────────┐      ┌───────────────────┐
-│   Kafka     │      │                      Go Pipeline Process                          │      │  Elasticsearch    │
-│  (topic:    │─────>│  Consumer → Parser → Processor → Detector → Alerter → Indexer   │─────>│  (logs index +    │
-│  app-logs)  │      │                                                                   │      │  anomalies index) │
-└─────────────┘      └───────────────────────────────┬──────────────────────────────────┘      └───────────────────┘
-                                                      │
-                                               ┌──────┴──────┐
-                                               │  REST API   │
-                                               │  (Gin HTTP) │
-                                               └─────────────┘
+┌─────────────┐      ┌──────────────────────────────────────────────────────┐      ┌───────────────────┐
+│   Kafka     │      │                   Go Pipeline Process                 │      │  Elasticsearch    │
+│  (topic:    │─────>│  Consumer → Parser → Worker → Detector → Dispatcher  │─────>│  (logs index +    │
+│  app-logs)  │      │                                                       │      │  anomalies index) │
+└─────────────┘      └────────────────────────┬─────────────────────────────┘      └───────────────────┘
+                                              │
+                              ┌───────────────┼───────────────┐
+                              │               │               │
+                       ┌──────┴──────┐ ┌──────┴──────┐ ┌──────┴──────┐
+                       │  REST API   │ │  Prometheus  │ │   Grafana   │
+                       │  :8080      │ │  :9090       │ │  :3000      │
+                       └─────────────┘ └──────────────┘ └─────────────┘
+                                              ▲
+                                    scrapes :2112/metrics
 ```
 
 Expanded pipeline view with concurrency layers:
@@ -29,39 +34,29 @@ Kafka Broker
     │  PollFetches (franz-go, consumer group)
     ▼
 ┌─────────────────────────────────────────────────┐
-│  Consumer (1 goroutine per partition)            │
+│  Consumer (1 goroutine)                          │
 │  kgo.PollFetches → *kgo.Record                  │
 └───────────────────┬─────────────────────────────┘
-                    │  chan RawMessage (buffered)
+                    │  chan RawMessage (buffered, 10 000)
                     ▼
 ┌─────────────────────────────────────────────────┐
-│  Parser Worker Pool (N goroutines)              │
-│  JSON/text → LogEntry struct                    │
+│  Worker Pool (4 goroutines)                      │
+│  Parse → IndexLog → Evaluate → metrics.Inc()    │
 └───────────────────┬─────────────────────────────┘
-                    │  chan LogEntry (buffered)
+                    │  chan Anomaly (via DetectorEngine)
                     ▼
 ┌─────────────────────────────────────────────────┐
-│  Processor / Enricher (1 goroutine)             │
-│  Normalize fields, attach metadata              │
-└───────────────────┬─────────────────────────────┘
-                    │  chan LogEntry (fan-out: two consumers)
-          ┌─────────┴─────────┐
-          ▼                   ▼
-┌─────────────────┐  ┌────────────────────────────┐
-│  ES Indexer     │  │  Detector (1 goroutine)     │
-│  BulkIndexer    │  │  Rule engine, window state  │
-│  (raw logs)     │  └──────────────┬─────────────┘
-└─────────────────┘                 │  chan Anomaly
-                                    ▼
-                         ┌──────────────────────┐
-                         │  Alerter (1 goroutine)│
-                         │  SMTP + ES index      │
-                         └──────────────────────┘
-                                    │
-                              ┌─────┴──────┐
-                              │  ES Index  │
-                              │ (anomalies)│
-                              └────────────┘
+│  Dispatcher (1 goroutine)                        │
+│  AnomalyStore.IndexAnomaly()                     │
+│  AlertChannel.Send()  ← nil in production        │
+└─────────────────────────────────────────────────┘
+
+Separate goroutines (same errgroup):
+┌─────────────────┐  ┌──────────────────┐
+│  REST API       │  │  Metrics Server  │
+│  :8080          │  │  :2112/metrics   │
+│  (Gin HTTP)     │  │  (promhttp)      │
+└─────────────────┘  └──────────────────┘
 ```
 
 ---
@@ -70,18 +65,19 @@ Kafka Broker
 
 ### 1. Consumer
 
-**Responsibility:** Connect to Kafka, consume messages from the `app-logs` topic using a consumer group, and emit raw byte payloads for parsing.
+**Responsibility:** Connect to Kafka, consume messages from the `application-logs` topic using a consumer group, and emit raw byte payloads for downstream processing.
 
-**Library:** `github.com/twmb/franz-go/pkg/kgo` (preferred over Sarama — lower overhead, modern Kafka protocol support, idiomatic context cancellation).
+**Library:** `github.com/twmb/franz-go/pkg/kgo`
 
 **Inputs:** Kafka topic records (`*kgo.Record`)
-**Outputs:** `chan RawMessage` (struct wrapping `[]byte` + metadata: topic, partition, offset, timestamp)
+**Outputs:** `chan RawMessage` (buffered, capacity 10 000)
 
 **Key decisions:**
 - One long-running goroutine calling `client.PollFetches(ctx)` in a loop.
-- Commits offsets after downstream processing confirms receipt (at-least-once semantics). Use `client.MarkCommitRecords` + `AutoCommitMarks`.
-- `OnPartitionsRevoked` callback drains in-flight work before rebalance completes.
-- Shutdown: context cancellation propagates upstream, `PollFetches` returns, consumer closes.
+- Offsets marked for commit only after the record is successfully sent into the output channel (at-least-once semantics). Uses `client.MarkCommitRecords` + `AutoCommitMarks`.
+- `OnPartitionsRevoked` callback commits marked offsets before rebalance completes.
+- After each fetch, per-partition lag is computed from `FetchPartition.HighWatermark` and the last record offset, then recorded to the `kafka_consumer_lag` Prometheus gauge.
+- Shutdown: context cancellation causes `PollFetches` to return; consumer closes the output channel.
 
 ```go
 type RawMessage struct {
@@ -97,328 +93,296 @@ type RawMessage struct {
 
 ### 2. Parser
 
-**Responsibility:** Deserialize raw bytes into a normalized `LogEntry` struct. Handle both structured (JSON) and unstructured (plain text) log formats.
+**Responsibility:** Deserialize raw bytes into a normalized `LogEntry` struct. Handles both structured (JSON) and unstructured (plain text) log formats.
 
-**Inputs:** `<-chan RawMessage`
-**Outputs:** `chan<- LogEntry`
+**Inputs:** `domain.RawMessage`
+**Outputs:** `domain.LogEntry`
 
 **Key decisions:**
-- Worker pool of N goroutines (N = `runtime.NumCPU()` as a starting default; tunable via config).
-- Parse errors are non-fatal: emit a `ParseError` metric, drop the message, continue.
-- Parser is a pure function `Parse([]byte) (LogEntry, error)` — no state, easy to test.
-- JSON parsing with `encoding/json` for structured logs; regex-based extraction for unstructured.
+- Pure function `Parse(RawMessage) (LogEntry, error)` — no state, trivially testable.
+- Parse errors are non-fatal: a plain-text fallback `LogEntry` is always returned alongside a non-nil error; `parse_errors_total` Prometheus counter is incremented by the calling worker.
+- JSON parsing with `encoding/json`; timestamp parsed as RFC3339, defaulting to `time.Now()` on failure.
+- Log level normalised to canonical values: `error`, `warn`, `info`, `debug`, `unknown`.
 
 ```go
 type LogEntry struct {
-    ID        string            // UUID generated at ingest
+    ID        string         // UUID generated at ingest
     Timestamp time.Time
-    Level     string            // "error", "warn", "info", "debug"
+    Level     string         // "error", "warn", "info", "debug", "unknown"
     Service   string
     Message   string
-    Fields    map[string]any    // arbitrary key-value pairs
-    RawSource string            // original unparsed line (for Elasticsearch storage)
-    Source    RawMessage        // for offset commit tracking
+    Fields    map[string]any // arbitrary key-value pairs from JSON "fields"
+    RawSource string         // original unparsed payload
+    Source    RawMessage     // for offset tracking
 }
 ```
 
 ---
 
-### 3. Processor / Enricher
+### 3. Worker Pool
 
-**Responsibility:** Apply normalization and enrichment to parsed log entries before fan-out to the detector and indexer. Examples: normalize log level casing, extract HTTP status codes from message strings, add ingestion timestamp.
+**Responsibility:** Fan the raw message channel across 4 goroutines, each performing the full per-record sequence: parse → index log → detect → record metrics.
 
-**Inputs:** `<-chan LogEntry`
-**Outputs:** `chan<- LogEntry` (same type, enriched)
+**Inputs:** `<-chan domain.RawMessage` (from Consumer)
+**Outputs:** calls `LogIndexer.IndexLog`, `DetectorEngine.Evaluate`, increments Prometheus counters
 
 **Key decisions:**
-- Single goroutine. At <1k logs/sec this is not a bottleneck. Simplifies state if enrichment ever needs service metadata lookups.
-- Enrichment steps implemented as a slice of `EnrichFunc` applied in order — easy to extend without modifying core logic.
-
-```go
-type EnrichFunc func(LogEntry) LogEntry
-```
+- 4 workers saturate physical CPU cores while leaving threads free for Kafka polling and ES bulk flush goroutines.
+- `range consumer.Messages()` distributes naturally across goroutines — Go runtime handles scheduling.
+- `logs_consumed_total{topic, partition}` is incremented per record after successful channel receive.
+- `logs_processed_duration_seconds` histogram observes end-to-end latency per record (parse + ES index + evaluate).
 
 ---
 
 ### 4. Detector
 
-**Responsibility:** Apply rule-based anomaly detection against the stream of log entries. Maintain time-windowed state (sliding windows, counters). Emit `Anomaly` events when rules trigger.
+**Responsibility:** Apply rule-based anomaly detection against each log entry. Maintains time-windowed in-memory state (sliding windows, per-service counters). Emits `Anomaly` events when rules fire.
 
-**Inputs:** `<-chan LogEntry`
-**Outputs:** `chan<- Anomaly`
+**Inputs:** `domain.LogEntry` (called synchronously by worker goroutines via `engine.Evaluate`)
+**Outputs:** `chan domain.Anomaly` (via `DetectorEngine`)
 
 **Key decisions:**
-- Single goroutine owning all window state — avoids lock contention on shared counters.
-- Rules implemented behind a `Detector` interface; multiple rules run sequentially per entry.
-- Window state uses in-memory ring buffers or `time.Ticker`-based eviction (not Redis/external state — v1 is single-process).
-- A rule that fires emits an `Anomaly`; the rule's own state is responsible for de-duplication (e.g., rate-limit alerts to once per 5 minutes per rule+service combination).
+- `DetectorEngine` owns a goroutine that routes anomalies from the internal channel with cooldown enforcement — prevents alert storms for the same rule+service pair.
+- Rules run sequentially per entry inside the worker goroutine. Rule state is protected by a mutex inside `DetectorEngine`.
+- Window state uses an in-memory circular timestamp buffer (`slidingWindow`) with periodic eviction.
+- Cooldown window (default 15 min) suppresses duplicate anomalies per `(RuleID, Service)`.
 
-**Rule types to implement:**
-- `ErrorRateRule`: count errors per service per rolling window; alert if rate > threshold
-- `LatencyThresholdRule`: parse latency from log fields; alert if p99 exceeds threshold
-- `RepeatedFailureRule`: N identical failures within window
-- `AuthFailureRule`: auth failures from same IP within window
-- `UnusualAccessRule`: access from IP not seen in prior rolling window
+**Implemented rules:**
+
+| Rule | Trigger |
+|---|---|
+| `error_rate_spike` | Error-level log count per service exceeds threshold within window |
+| `latency_threshold` | `fields.latency_ms` breach rate per service exceeds configured % |
+| `repeated_failure` | Same service/endpoint fails N times within window |
+| `auth_failure_burst` | Auth failures from a single IP or username exceed threshold |
+| `off_hours_access` | Sensitive path accessed outside configured business hours |
+| `service_silence` | A previously active service emits no logs for `silence_after` duration |
 
 ```go
-type Anomaly struct {
-    ID          string
-    RuleID      string
-    Severity    string  // "critical", "high", "medium", "low"
-    Service     string
-    Description string
-    Evidence    []LogEntry  // contributing log entries
-    DetectedAt  time.Time
-}
-
 type Detector interface {
     Name() string
-    Evaluate(entry LogEntry) (Anomaly, bool)  // bool = anomaly detected
-    Reset()                                    // for testing
+    Evaluate(entry LogEntry) (Anomaly, bool)
+    Reset()
 }
 ```
 
 ---
 
-### 5. Indexer (Elasticsearch)
+### 5. Dispatcher
 
-**Responsibility:** Persist `LogEntry` records to the `logs` index and `Anomaly` records to the `anomalies` index in Elasticsearch.
+**Responsibility:** Consume detected anomalies, persist them to Elasticsearch, and optionally forward to an alert channel. Failure in one output does not block the other.
 
-**Library:** `github.com/elastic/go-elasticsearch/v8` with `esutil.BulkIndexer`
-
-**Inputs:** `<-chan LogEntry` (for raw logs), `<-chan Anomaly` (for anomalies, tee'd from the alerter path)
-**Outputs:** None (side effects: Elasticsearch documents)
+**Inputs:** `<-chan domain.Anomaly`
+**Outputs:** `AnomalyStore.IndexAnomaly`, `AlertChannel.Send` (optional)
 
 **Key decisions:**
-- Use `esutil.BulkIndexer` (not individual `Index` calls) — it internally batches requests, uses multiple worker goroutines, and flushes on byte threshold or interval.
-- Two separate BulkIndexer instances: one for `logs-{YYYY.MM.DD}` (daily rollover index), one for `anomalies`.
-- Index mapping defined up-front via index templates applied at startup.
-- `OnFailure` callback on BulkIndexerItem logs the failure and increments an error metric. Do not retry individual documents in v1.
-
-```go
-type LogIndexer interface {
-    IndexLog(ctx context.Context, entry LogEntry) error
-    IndexAnomaly(ctx context.Context, anomaly Anomaly) error
-    Close(ctx context.Context) error
-}
-```
-
----
-
-### 6. Alerter
-
-**Responsibility:** Receive `Anomaly` events, send email alerts via SMTP, and forward anomalies to the Indexer for persistence.
-
-**Library:** `net/smtp` (standard library) for v1. Note: `net/smtp` is frozen and low-level; wrapping it in an `Alerter` interface means it can be swapped for `github.com/wneessen/go-mail` in v2 without changing callers.
-
-**Inputs:** `<-chan Anomaly`
-**Outputs:** SMTP email, `chan<- Anomaly` (forwarded to Indexer)
-
-**Key decisions:**
-- Single goroutine consuming the anomaly channel.
-- In-process rate limiting per `(RuleID, Service)` pair — suppress duplicate alerts within a configurable window (default: 5 minutes).
-- Email failures are non-fatal: log the error, continue processing. The anomaly is still persisted to Elasticsearch.
-- Use a connection pool or reconnect-on-use pattern since SMTP connections are not persistent.
+- Single goroutine; no rate-limiting needed here — cooldown is enforced upstream by `DetectorEngine`.
+- `AlertChannel` is wired as `nil` in production. The interface is retained for future notification integrations (webhook, PagerDuty, etc.) without changing the dispatcher.
+- `anomalies_detected_total{rule}` Prometheus counter is incremented by the detection engine before the anomaly reaches the dispatcher.
 
 ```go
 type AlertChannel interface {
     Send(ctx context.Context, anomaly Anomaly) error
     Name() string
 }
-
-// Concrete implementations:
-// SMTPAlerter implements AlertChannel
-// NoopAlerter implements AlertChannel (for testing)
 ```
 
 ---
 
-### 7. REST API
+### 6. Indexer (Elasticsearch)
+
+**Responsibility:** Persist `LogEntry` records to the `logs-{YYYY.MM.DD}` index and `Anomaly` records to the `anomalies` index.
+
+**Library:** `github.com/elastic/go-elasticsearch/v8` with `esutil.BulkIndexer`
+
+**Inputs:** `LogEntry` (log indexer), `Anomaly` (anomaly indexer)
+**Outputs:** Elasticsearch documents
+
+**Key decisions:**
+- Two separate `BulkIndexer` instances: one for `logs-{YYYY.MM.DD}` (daily rollover), one for `anomalies`.
+- `esutil.BulkIndexer` batches internally, flushes on byte threshold or interval — far more efficient than individual index calls.
+- Index mappings set via index templates applied at startup (`ApplyIndexTemplates`).
+- `elasticsearch_write_errors_total` Prometheus counter is incremented on bulk item failure via the `OnFailure` callback.
+- `Close(ctx)` flushes remaining buffered documents during graceful shutdown.
+
+**Index schemas:**
+
+`logs-{YYYY.MM.DD}`:
+```json
+{
+  "@timestamp": "2026-04-08T10:00:00Z",
+  "level": "error",
+  "service": "api-gateway",
+  "message": "connection timeout to upstream",
+  "fields": { "latency_ms": 5000, "source_ip": "10.0.0.1" },
+  "raw_source": "<original log line>"
+}
+```
+
+`anomalies`:
+```json
+{
+  "id": "uuid",
+  "rule_id": "error_rate_spike",
+  "severity": "high",
+  "service": "api-gateway",
+  "description": "error rate spike: 12 errors in 5m for service api-gateway",
+  "detected_at": "2026-04-08T10:01:00Z",
+  "evidence": [{ ... }]
+}
+```
+
+---
+
+### 7. Prometheus Metrics Server
+
+**Responsibility:** Expose runtime metrics on a dedicated port for Prometheus scraping. Completely separate from the REST API server.
+
+**Library:** `github.com/prometheus/client_golang/prometheus/promhttp`
+
+**Endpoint:** `GET :2112/metrics`
+
+**Registered metrics:**
+
+| Metric | Type | Labels | Description |
+|---|---|---|---|
+| `logs_consumed_total` | Counter | `topic`, `partition` | Kafka records consumed |
+| `logs_processed_duration_seconds` | Histogram | — | End-to-end processing latency per record |
+| `anomalies_detected_total` | Counter | `rule` | Anomalies detected, by rule |
+| `kafka_consumer_lag` | Gauge | `topic`, `partition` | Consumer lag per partition |
+| `elasticsearch_write_errors_total` | Counter | — | ES bulk write failures |
+| `parse_errors_total` | Counter | — | Plain-text fallback parse events |
+
+---
+
+### 8. Grafana
+
+**Responsibility:** Visualise metrics from Prometheus with a pre-built provisioned dashboard.
+
+**Access:** `http://localhost:3000` (credentials: `admin / admin123`)
+
+**Provisioning:**
+- Datasource: `grafana/provisioning/datasources/prometheus.yml` — points to `http://prometheus:9090`, fixed `uid: prometheus`
+- Dashboard provider: `grafana/provisioning/dashboards/dashboard.yml` — loads from `/var/lib/grafana/dashboards`
+- Dashboard definition: `grafana/dashboards/log-analytics.json`
+
+**Dashboard panels:**
+
+| Panel | Query | Type |
+|---|---|---|
+| Log Ingestion Rate | `sum(rate(logs_consumed_total[1m]))` | Time series |
+| Processing Latency | `histogram_quantile(0.50/0.95/0.99, rate(logs_processed_duration_seconds_bucket[5m]))` | Time series |
+| Anomaly Detection Rate | `rate(anomalies_detected_total[5m])` | Time series |
+| Anomalies by Rule | `sum by(rule)(anomalies_detected_total)` | Pie chart |
+| Kafka Consumer Lag | `kafka_consumer_lag` | Time series |
+| Elasticsearch Write Errors | `increase(elasticsearch_write_errors_total[1h])` | Stat |
+| Parse Errors | `increase(parse_errors_total[1h])` | Stat |
+
+---
+
+### 9. REST API
 
 **Responsibility:** Expose HTTP endpoints for querying logs and anomalies stored in Elasticsearch.
 
-**Library:** `github.com/gin-gonic/gin`
+**Library:** `net/http` (standard library; no external router framework)
 
-**Inputs:** HTTP requests
-**Outputs:** JSON responses (read from Elasticsearch)
+**Port:** `:8080`
 
-**Endpoints (v1):**
+**Endpoints:**
 ```
-GET  /api/v1/logs                   - List logs, supports ?service=, ?level=, ?from=, ?to=, ?q= (full-text)
-GET  /api/v1/logs/:id               - Get single log entry by ID
-GET  /api/v1/anomalies              - List anomalies, supports ?severity=, ?rule=, ?service=, ?from=, ?to=
-GET  /api/v1/anomalies/:id          - Get single anomaly by ID
-GET  /api/v1/health                 - Health check (Kafka + ES connectivity)
+GET  /api/v1/logs            ?service=, ?level=, ?from=, ?to=, ?q= (full-text), ?page=, ?size=
+GET  /api/v1/logs/:id
+GET  /api/v1/anomalies       ?severity=, ?rule=, ?service=, ?from=, ?to=, ?page=, ?size=
+GET  /api/v1/anomalies/:id
+GET  /health                 Elasticsearch ping
+GET  /ready                  Atomic ready flag (used by Docker healthcheck)
 ```
 
 **Key decisions:**
-- API server runs in its own goroutine, independent of the pipeline goroutines.
-- Elasticsearch queries use the `es.Search` API with structured query DSL bodies.
-- Pagination via `from`/`size` parameters (Elasticsearch native). Deep pagination (>10k results) deferred to v2 via search_after.
-- No write endpoints — the pipeline is the only data producer.
+- Runs in its own goroutine, independent of pipeline goroutines.
+- Read-only — the pipeline is the sole data producer.
+- Pagination via `page`/`size` (mapped to ES `from`/`size`).
 
 ---
 
 ## Concurrency Model
 
-The system uses a **staged pipeline** model where each stage communicates through buffered channels. This is the canonical Go pattern from the official pipelines blog post.
+The system uses an **errgroup-based staged pipeline** where goroutines are started once and communicate through channels and direct calls. All goroutines share a single `errgroup` context — the first fatal error cancels all others.
 
-### Channel Sizing
+### Goroutine Map
 
-| Channel | Buffer Size | Rationale |
-|---------|-------------|-----------|
-| `rawMessages` | 1000 | Absorb Kafka batch bursts; PollFetches returns batches |
-| `parsedEntries` | 500 | Workers drain faster than consumer produces |
-| `enrichedEntries` | 500 | After processor, two consumers read (fan-out via tee) |
-| `anomalies` | 100 | Low volume — anomalies are rare relative to log volume |
+| Goroutine | Count | Communication |
+|---|---|---|
+| Kafka consumer | 1 | writes `chan RawMessage` |
+| Pipeline worker | 4 | reads `chan RawMessage`; calls ES, detector directly |
+| Anomaly dispatcher | 1 | reads `chan Anomaly` from `DetectorEngine` |
+| REST API server | 1 | reads from ES on demand |
+| Prometheus metrics server | 1 | serves `/metrics` |
+| Shutdown watcher | 1 | waits for ctx, calls graceful stops |
 
-At <1k logs/sec these buffers prevent back-pressure build-up during transient slowdowns (e.g., ES write latency spikes).
-
-### Worker Pool Pattern (Parser)
-
-```go
-func startParserPool(ctx context.Context, in <-chan RawMessage, numWorkers int) <-chan LogEntry {
-    out := make(chan LogEntry, 500)
-    var wg sync.WaitGroup
-    wg.Add(numWorkers)
-    for i := 0; i < numWorkers; i++ {
-        go func() {
-            defer wg.Done()
-            for {
-                select {
-                case msg, ok := <-in:
-                    if !ok {
-                        return
-                    }
-                    entry, err := parseRawMessage(msg)
-                    if err != nil {
-                        // log parse error, continue
-                        continue
-                    }
-                    select {
-                    case out <- entry:
-                    case <-ctx.Done():
-                        return
-                    }
-                case <-ctx.Done():
-                    return
-                }
-            }
-        }()
-    }
-    go func() {
-        wg.Wait()
-        close(out)
-    }()
-    return out
-}
-```
-
-### Fan-Out Tee (Processor → Detector + Indexer)
-
-The enriched `LogEntry` stream must be consumed by two independent goroutines: the Detector and the Log Indexer. Use a tee function:
+### Lifecycle Management
 
 ```go
-func tee(ctx context.Context, in <-chan LogEntry) (<-chan LogEntry, <-chan LogEntry) {
-    out1 := make(chan LogEntry, 500)
-    out2 := make(chan LogEntry, 500)
-    go func() {
-        defer close(out1)
-        defer close(out2)
-        for {
-            select {
-            case entry, ok := <-in:
-                if !ok {
-                    return
-                }
-                // Send to both; block until both accept
-                select {
-                case out1 <- entry:
-                }
-                select {
-                case out2 <- entry:
-                }
-            case <-ctx.Done():
-                return
-            }
-        }
-    }()
-    return out1, out2
+g, gCtx := errgroup.WithContext(ctx)
+
+g.Go(func() error { return consumer.Run(gCtx) })
+for range 4 {
+    g.Go(func() error { /* worker: parse → index → evaluate */ })
 }
-```
+g.Go(func() error { return dispatcher.Run(gCtx) })
+g.Go(func() error { return apiServer.ListenAndServe() })
+g.Go(func() error { return metricsServer.ListenAndServe() })
+g.Go(func() error {
+    <-gCtx.Done()
+    // graceful shutdown: api, metrics, engine, indexers
+})
 
-### Lifecycle Management with errgroup
-
-All pipeline goroutines are started under a single `errgroup` with a shared context. The first goroutine to return an error cancels the context, which propagates shutdown through all channels.
-
-```go
-func (p *Pipeline) Run(ctx context.Context) error {
-    g, ctx := errgroup.WithContext(ctx)
-
-    g.Go(func() error { return p.consumer.Run(ctx) })
-    g.Go(func() error { return p.parserPool.Run(ctx) })
-    g.Go(func() error { return p.processor.Run(ctx) })
-    g.Go(func() error { return p.detector.Run(ctx) })
-    g.Go(func() error { return p.alerter.Run(ctx) })
-    g.Go(func() error { return p.logIndexer.Run(ctx) })
-    g.Go(func() error { return p.anomalyIndexer.Run(ctx) })
-
-    return g.Wait()
-}
+return g.Wait()
 ```
 
 ### Shutdown Sequence
 
 1. OS signal (SIGINT/SIGTERM) cancels root context.
 2. Kafka consumer's `PollFetches` returns; consumer closes `rawMessages` channel.
-3. Parser workers drain remaining messages, close `parsedEntries`.
-4. Processor drains and closes its output channel.
-5. Tee goroutine closes both fan-out channels.
-6. Detector drains, closes `anomalies`. Indexer drains, calls `BulkIndexer.Close()`.
-7. Alerter drains remaining anomalies.
-8. `errgroup.Wait()` returns nil (or first error).
+3. Worker goroutines drain remaining messages from closed channel, then return.
+4. `DetectorEngine.Stop()` closes the anomaly channel.
+5. Dispatcher drains remaining anomalies, returns.
+6. API and metrics servers receive `Shutdown(ctx)` with 8-second timeout.
+7. Log and anomaly `BulkIndexer.Close()` flushes pending ES documents.
+8. `errgroup.Wait()` returns nil (or the first non-`context.Canceled` error).
 
 ---
 
 ## Interface Design
 
-All key extension points are behind interfaces. This enables:
-- Swapping implementations without changing callers (e.g., SMTPAlerter → webhook alerter)
-- Dependency injection for testing (NoopAlerter, in-memory indexer)
-
-### Core Interfaces
+All key extension points are behind interfaces defined in `internal/domain`.
 
 ```go
-// Consumer reads from the message source
+// MessageConsumer reads from the message source
 type MessageConsumer interface {
     Run(ctx context.Context) error
     Messages() <-chan RawMessage
 }
 
-// Parser converts raw bytes to structured log entries
+// Parser converts raw bytes to a structured log entry
 type Parser interface {
     Parse(msg RawMessage) (LogEntry, error)
 }
 
-// Enricher modifies log entries in-place (no output channel needed)
-type Enricher interface {
-    Enrich(entry LogEntry) LogEntry
-}
-
-// Detector evaluates a log entry against a single rule
+// Detector evaluates a log entry against a single anomaly rule
 type Detector interface {
     Name() string
     Evaluate(entry LogEntry) (Anomaly, bool)
     Reset()
 }
 
-// AlertChannel sends anomaly notifications
+// AlertChannel sends anomaly notifications (nil in production — reserved for future use)
 type AlertChannel interface {
     Send(ctx context.Context, anomaly Anomaly) error
     Name() string
 }
 
-// LogStore persists and queries logs
+// LogStore persists and queries log entries
 type LogStore interface {
     IndexLog(ctx context.Context, entry LogEntry) error
     SearchLogs(ctx context.Context, query LogQuery) ([]LogEntry, int64, error)
@@ -433,219 +397,77 @@ type AnomalyStore interface {
 }
 ```
 
-### Detector Registry
-
-Detectors are registered at startup and run sequentially per log entry in the Detector stage:
-
-```go
-type DetectorEngine struct {
-    rules []Detector
-}
-
-func (e *DetectorEngine) Evaluate(entry LogEntry) []Anomaly {
-    var results []Anomaly
-    for _, rule := range e.rules {
-        if anomaly, ok := rule.Evaluate(entry); ok {
-            results = append(results, anomaly)
-        }
-    }
-    return results
-}
-```
-
-New detection rules are added by implementing `Detector` and registering in the wiring layer — no changes to the engine itself.
-
 ---
 
-## Data Flow
-
-### Log Entry Lifecycle
-
-```
-1. Kafka Record arrives
-   └── kgo.Record{Value: []byte(`{"level":"error","service":"api","msg":"timeout"}`)}
-
-2. RawMessage created
-   └── RawMessage{Payload: bytes, Topic, Partition, Offset, Timestamp}
-
-3. Parsed → LogEntry
-   └── LogEntry{ID: uuid, Level: "error", Service: "api", Message: "timeout",
-               Fields: {}, Timestamp: t, RawSource: original}
-
-4. Enriched → LogEntry (same type)
-   └── Fields enriched: HTTPStatusCode extracted, normalized Level
-
-5a. Indexed → Elasticsearch logs-2026.03.21 index
-    └── Document with all LogEntry fields + @timestamp
-
-5b. Evaluated → Detector engine
-    └── ErrorRateRule: error count for "api" in last 60s incremented
-        └── Threshold exceeded → Anomaly{RuleID: "error-rate", Service: "api", ...}
-
-6. Anomaly → Alerter
-   └── Email sent to configured recipients
-   └── Anomaly forwarded to Indexer
-
-7. Anomaly → Indexed → Elasticsearch anomalies index
-   └── Document with Anomaly fields + Evidence log IDs
-```
-
-### Elasticsearch Index Structure
-
-**logs-{YYYY.MM.DD}** (daily index, covered by index template):
-```json
-{
-  "id": "uuid",
-  "@timestamp": "2026-03-21T10:00:00Z",
-  "level": "error",
-  "service": "api-gateway",
-  "message": "connection timeout to upstream",
-  "fields": { "http_status": 503, "duration_ms": 5000 },
-  "raw_source": "<original log line>"
-}
-```
-
-**anomalies**:
-```json
-{
-  "id": "uuid",
-  "rule_id": "error-rate-spike",
-  "severity": "high",
-  "service": "api-gateway",
-  "description": "Error rate 45/min exceeds threshold 10/min",
-  "evidence_log_ids": ["uuid1", "uuid2"],
-  "detected_at": "2026-03-21T10:01:00Z"
-}
-```
-
----
-
-## Configuration & Wiring
-
-### Configuration Shape (YAML + env vars via Viper)
+## Configuration Shape (YAML via Viper)
 
 ```yaml
 kafka:
   brokers:
-    - "localhost:9092"
-  topic: "app-logs"
-  consumer_group: "log-analytics"
-  fetch_max_bytes: 10485760      # 10MB
-  session_timeout: "30s"
+    - "kafka:29092"
+  topic: "application-logs"
+  group_id: "log-analytics"
+  initial_offset: "oldest"       # "oldest" | "newest"
 
 elasticsearch:
   addresses:
-    - "http://localhost:9200"
+    - "http://elasticsearch:9200"
   username: ""
   password: ""
-  log_index_prefix: "logs"       # final: logs-2026.03.21
-  anomaly_index: "anomalies"
-  bulk_flush_bytes: 5242880      # 5MB
-  bulk_flush_interval: "10s"
-  bulk_num_workers: 2
+  max_idle_conns: 50
+  response_timeout: "15s"
 
-pipeline:
-  parser_workers: 4
-  raw_message_buffer: 1000
-  parsed_entry_buffer: 500
+metrics:
+  port: 2112                     # Prometheus scrape endpoint
 
 detection:
+  window_duration: "5m"
+  eviction_interval: "30s"
+  cooldown_duration: "15m"
+  warmup_multiplier: 2
   rules:
     error_rate:
       enabled: true
-      window: "60s"
-      threshold: 10              # errors/min per service
-    latency_threshold:
+      threshold: 10
+      window: "5m"
+      severity: "high"
+    latency:
       enabled: true
-      field: "duration_ms"
-      threshold_ms: 5000
+      threshold_ms: 500
+      breach_rate_percent: 20
+      window: "5m"
+      severity: "medium"
     repeated_failure:
       enabled: true
-      window: "300s"
-      count: 5
-    auth_failure:
+      threshold: 5
+      window: "5m"
+      severity: "medium"
+    auth_burst:
       enabled: true
-      window: "60s"
-      count: 10
-  alert_suppression_window: "5m"
-
-alerting:
-  email:
-    smtp_host: "smtp.example.com"
-    smtp_port: 587
-    username: ""
-    password: ""
-    from: "alerts@example.com"
-    to:
-      - "oncall@example.com"
+      threshold: 10
+      window: "5m"
+      ip_field: "source_ip"
+      user_field: "username"
+      severity: "high"
+    off_hours:
+      enabled: true
+      business_hours_start: 9
+      business_hours_end: 17
+      timezone: "UTC"
+      sensitive_paths: ["/admin", "/api/v1/users", "/internal"]
+      severity: "medium"
+    service_silence:
+      enabled: true
+      silence_after: "5m"
+      check_interval: "30s"
+      min_log_count: 5
+      severity: "critical"
 
 api:
-  listen_addr: ":8080"
-  read_timeout: "10s"
-  write_timeout: "30s"
-```
+  port: 8080
 
-### Wiring Layer (main.go / wire.go)
-
-The wiring layer is the only place that knows about concrete types. All other layers depend only on interfaces.
-
-```go
-func wire(cfg *Config) (*App, error) {
-    // Infrastructure
-    kafkaClient, err := newKafkaClient(cfg.Kafka)
-    esClient, err := newESClient(cfg.Elasticsearch)
-
-    // Stores (implement LogStore, AnomalyStore)
-    logStore := elasticsearch.NewLogStore(esClient, cfg.Elasticsearch)
-    anomalyStore := elasticsearch.NewAnomalyStore(esClient, cfg.Elasticsearch)
-
-    // Alert channels (implement AlertChannel)
-    emailAlerter := smtp.NewSMTPAlerter(cfg.Alerting.Email)
-
-    // Detectors (implement Detector)
-    detectors := []Detector{
-        detection.NewErrorRateRule(cfg.Detection.Rules.ErrorRate),
-        detection.NewLatencyRule(cfg.Detection.Rules.LatencyThreshold),
-        detection.NewRepeatedFailureRule(cfg.Detection.Rules.RepeatedFailure),
-        detection.NewAuthFailureRule(cfg.Detection.Rules.AuthFailure),
-    }
-
-    // Pipeline stages
-    consumer := kafka.NewConsumer(kafkaClient, cfg.Pipeline)
-    parserPool := pipeline.NewParserPool(cfg.Pipeline.ParserWorkers)
-    processor := pipeline.NewProcessor(enrichers...)
-    engine := detection.NewEngine(detectors)
-    alerter := alert.NewAlerter([]AlertChannel{emailAlerter}, anomalyStore, cfg.Detection)
-
-    // HTTP API
-    api := api.New(logStore, anomalyStore, cfg.API)
-
-    return &App{
-        pipeline: pipeline.New(consumer, parserPool, processor, engine, alerter, logStore),
-        api:      api,
-    }, nil
-}
-```
-
-### Application Entrypoint
-
-```go
-func main() {
-    cfg := loadConfig()          // Viper: config.yaml + env vars
-    app, err := wire(cfg)
-    if err != nil { log.Fatal(err) }
-
-    ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-    defer stop()
-
-    g, ctx := errgroup.WithContext(ctx)
-    g.Go(func() error { return app.pipeline.Run(ctx) })
-    g.Go(func() error { return app.api.Run(ctx) })
-
-    if err := g.Wait(); err != nil && !errors.Is(err, context.Canceled) {
-        log.Fatal(err)
-    }
-}
+log:
+  level: "info"
 ```
 
 ---
@@ -653,15 +475,14 @@ func main() {
 ## Error Handling Strategy
 
 | Error Type | Handling | Rationale |
-|------------|----------|-----------|
-| Parse failure | Log + drop message + continue | Malformed logs must not stop the pipeline |
-| Elasticsearch index failure | Log + increment metric, BulkIndexer OnFailure callback | At <1k/s, dropped documents are acceptable in v1 |
-| SMTP send failure | Log + continue (anomaly still indexed) | Alert delivery is best-effort; ES record is the source of truth |
-| Kafka consumer error | Log + retry via PollFetches error handling | franz-go handles reconnect internally |
-| Rule evaluation panic | `recover()` in engine loop, log stack trace, continue | Bugs in detection rules must not crash pipeline |
-| Kafka partition rebalance | Drain in-flight work in `OnPartitionsRevoked` | Prevents duplicate processing after reassignment |
+|---|---|---|
+| Parse failure | Emit plain-text `LogEntry`, increment `parse_errors_total`, continue | Malformed logs must not stop the pipeline |
+| Elasticsearch index failure | Log error, increment `elasticsearch_write_errors_total`, continue | Pipeline throughput takes priority; documents are best-effort in v1 |
+| Kafka consumer error | Log, continue — franz-go handles reconnect internally | Transient broker issues must not crash the pipeline |
+| Rule evaluation panic | `recover()` in engine loop, log stack trace, continue | Bugs in detection rules must not crash the pipeline |
+| Kafka partition rebalance | `OnPartitionsRevoked` commits marked offsets before returning | Prevents offset regression / duplicate processing after reassignment |
 
-**At-least-once semantics:** Offsets are committed only after the Kafka record has been forwarded into the `rawMessages` channel. Combined with a graceful drain on shutdown, this minimizes (but does not eliminate) re-processing on restart. Idempotent document IDs (derived from Kafka offset + partition) prevent duplicate Elasticsearch documents.
+**At-least-once semantics:** Offsets are committed only after the record enters the `rawMessages` channel. On restart the consumer re-reads from the last committed offset. Elasticsearch document IDs are stable UUIDs generated at parse time — duplicate submissions on replay are idempotent.
 
 ---
 
@@ -670,32 +491,44 @@ func main() {
 ```
 .
 ├── cmd/
-│   └── server/
-│       └── main.go             # Entrypoint, wiring
+│   ├── server/
+│   │   ├── main.go             # Entrypoint: config load, logger, signal handling
+│   │   └── wire.go             # Wiring: constructs all components, runs errgroup
+│   └── loadtest/
+│       └── main.go             # Load generator: 5-min phased Kafka producer for manual testing
 ├── internal/
-│   ├── config/                 # Config structs, Viper loading
-│   ├── domain/                 # LogEntry, Anomaly, RawMessage types (no external deps)
-│   ├── kafka/                  # MessageConsumer implementation (franz-go)
-│   ├── pipeline/               # Parser pool, Processor, tee utilities
-│   ├── detection/              # Detector interface + all rule implementations
-│   ├── alert/                  # AlertChannel interface, Alerter orchestrator
-│   ├── smtp/                   # SMTPAlerter (AlertChannel implementation)
-│   ├── elasticsearch/          # LogStore, AnomalyStore implementations
-│   └── api/                    # Gin router, handlers, query structs
-└── pkg/
-    └── (exported utilities if any)
+│   ├── config/                 # Config structs, Viper loading, defaults
+│   ├── domain/                 # Core types (LogEntry, Anomaly, RawMessage) and interfaces — zero external deps
+│   ├── kafka/                  # Consumer implementation (franz-go); lag metric reporting
+│   ├── pipeline/               # Parser (Parse func + LogParser); ProcessMessage helper
+│   ├── detection/              # DetectorEngine + all rule implementations + sliding window
+│   ├── alert/                  # Dispatcher: anomaly fan-out to AnomalyStore and AlertChannel
+│   ├── metrics/                # Prometheus metric variable declarations and init() registration
+│   ├── elasticsearch/          # LogIndexer, AnomalyIndexer (BulkIndexer), index template setup, ES client
+│   └── api/                    # HTTP server, handlers (/logs, /anomalies, /health, /ready), middleware
+├── grafana/
+│   ├── provisioning/
+│   │   ├── datasources/prometheus.yml   # Prometheus datasource (uid: prometheus)
+│   │   └── dashboards/dashboard.yml     # Dashboard file provider config
+│   └── dashboards/
+│       └── log-analytics.json           # Pre-built Grafana dashboard (7 panels)
+├── docs/
+│   └── elasticsearch-query-guide.md    # ES query reference for logs and anomalies indices
+├── prometheus.yml              # Prometheus scrape config (scrapes app:2112)
+├── docker-compose.yml          # Full stack: kafka + kafka-init + elasticsearch + app + prometheus + grafana
+└── config.docker.yaml          # Runtime config for Docker deployment
 ```
 
-**Key boundary:** `internal/domain` has zero external dependencies. All other packages depend inward on domain types, never outward on each other (except through wiring in `cmd/`).
+**Key boundary:** `internal/domain` has zero external dependencies. All other packages import domain types inward; no cross-imports between sibling packages (enforced by wiring only in `cmd/`).
 
 ---
 
 ## Sources
 
-- Go Pipelines blog post (official): https://go.dev/blog/pipelines — HIGH confidence
-- franz-go consumer API: https://pkg.go.dev/github.com/twmb/franz-go/pkg/kgo — HIGH confidence (verified against pkg.go.dev)
-- go-elasticsearch v8 BulkIndexer: https://pkg.go.dev/github.com/elastic/go-elasticsearch/v8/esutil — HIGH confidence
-- errgroup: https://pkg.go.dev/golang.org/x/sync/errgroup — HIGH confidence
-- Gin framework: https://pkg.go.dev/github.com/gin-gonic/gin — HIGH confidence
-- Viper configuration: https://pkg.go.dev/github.com/spf13/viper — HIGH confidence
-- net/smtp standard library: https://pkg.go.dev/net/smtp — HIGH confidence (note: frozen, limited features)
+- Go Pipelines blog post (official): https://go.dev/blog/pipelines
+- franz-go consumer API: https://pkg.go.dev/github.com/twmb/franz-go/pkg/kgo
+- go-elasticsearch v8 BulkIndexer: https://pkg.go.dev/github.com/elastic/go-elasticsearch/v8/esutil
+- errgroup: https://pkg.go.dev/golang.org/x/sync/errgroup
+- Prometheus Go client: https://pkg.go.dev/github.com/prometheus/client_golang/prometheus
+- Grafana provisioning docs: https://grafana.com/docs/grafana/latest/administration/provisioning/
+- Viper configuration: https://pkg.go.dev/github.com/spf13/viper
