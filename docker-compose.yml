@@ -7,13 +7,8 @@ services:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - ES_JAVA_OPTS=-Xms1g -Xmx1g
-      - bootstrap.memory_lock=true
       - thread_pool.write.queue_size=1000
       - thread_pool.search.queue_size=500
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
     deploy:
       resources:
         limits:
@@ -66,10 +61,7 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-    entrypoint: >
-      bash -c "kafka-topics --bootstrap-server kafka:29092
-        --create --if-not-exists --topic application-logs
-        --partitions 3 --replication-factor 1"
+    entrypoint: ["/bin/bash", "-c", "kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic application-logs --partitions 3 --replication-factor 1"]
     restart: "no"
 
   # ── Prometheus ───────────────────────────────────────────────────────────────

@@ -5,6 +5,8 @@ package integration
 import (
 	"context"
 	"log"
+	"os"
+	"strings"
 	"testing"
 
 	elasticsearch "github.com/elastic/go-elasticsearch/v9"
@@ -20,9 +22,27 @@ var (
 	kafkaBrokers   []string
 	esAddress      string
 	esCACert       []byte
+
+	// liveMode is true when LIVE_KAFKA_BROKERS and LIVE_ES_ADDRESS are both set.
+	// In live mode the test skips testcontainers and targets the running Docker stack.
+	liveMode bool
 )
 
 func TestMain(m *testing.M) {
+	liveBrokers := os.Getenv("LIVE_KAFKA_BROKERS")
+	liveES := os.Getenv("LIVE_ES_ADDRESS")
+	liveMode = liveBrokers != "" && liveES != ""
+
+	if liveMode {
+		kafkaBrokers = strings.Split(liveBrokers, ",")
+		esAddress = liveES
+		goleak.VerifyTestMain(m,
+			goleak.IgnoreTopFunction("net/http.(*persistConn).writeLoop"),
+			goleak.IgnoreTopFunction("internal/poll.runtime_pollWait"),
+		)
+		return
+	}
+
 	ctx := context.Background()
 
 	var err error
@@ -66,9 +86,15 @@ func TestMain(m *testing.M) {
 	)
 }
 
-// newESClient builds a TypedClient from the container settings.
-// This bypasses the project's NewClient to use CACert for TLS.
+// newESClient builds a TypedClient pointed at the active Elasticsearch.
+// In live mode it connects unauthenticated (matching config.docker.yaml).
+// In isolated mode it uses the TLS cert and credentials from the test container.
 func newESClient() (*elasticsearch.TypedClient, error) {
+	if liveMode {
+		return elasticsearch.NewTypedClient(elasticsearch.Config{
+			Addresses: []string{esAddress},
+		})
+	}
 	return elasticsearch.NewTypedClient(elasticsearch.Config{
 		Addresses: []string{esAddress},
 		Username:  "elastic",

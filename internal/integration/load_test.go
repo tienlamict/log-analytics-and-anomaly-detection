@@ -38,18 +38,22 @@ import (
 // ── Test constants ────────────────────────────────────────────────────────────
 
 const (
-	loadTopic     = "load-test-logs"
-	loadGroupID   = "load-test-consumer-group"
+	// isolatedTopic is used when running against testcontainers (isolated mode).
+	isolatedTopic = "load-test-logs"
+	// liveTopic is the topic consumed by the running Docker stack app.
+	liveTopic   = "application-logs"
+	loadGroupID = "load-test-consumer-group"
+
 	totalMessages = 10_000
 
-	// Detection windows are short to minimise total test time.
+	// Detection windows are short to minimise total test time (isolated mode only).
 	// windowDur must be large enough to cover the full produce→consume latency.
 	windowDur = 10 * time.Second
 
 	// warmupWait is slightly longer than the warmup period (warmup_multiplier=1 × window=10s).
 	warmupWait = 11 * time.Second
 
-	// How long to wait for all anomaly rules to fire after producing.
+	// How long to wait for all anomaly rules to fire after producing (isolated mode).
 	anomalyTimeout = 90 * time.Second
 
 	// Minimum acceptable ingestion throughput (msgs/s) for the Kafka producer.
@@ -78,6 +82,61 @@ const (
 // ── Test entry point ──────────────────────────────────────────────────────────
 
 func TestHighLoad(t *testing.T) {
+	if liveMode {
+		testHighLoadLive(t)
+	} else {
+		testHighLoadIsolated(t)
+	}
+}
+
+// testHighLoadLive produces the full message mix to the running Docker stack's
+// application-logs topic. Detection and indexing are handled by the running app;
+// this function only measures producer throughput and reports when to expect results.
+//
+// Run with:
+//
+//	LIVE_KAFKA_BROKERS=localhost:9092 LIVE_ES_ADDRESS=http://localhost:9200 \
+//	  go test -v -tags integration ./internal/integration/ -run TestHighLoad -timeout 5m
+func testHighLoadLive(t *testing.T) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	messages := generateLoadMessages()
+	require.Equal(t, totalMessages, len(messages), "message count mismatch")
+
+	t.Logf("live mode: producing %d messages to topic %q on brokers %v", totalMessages, liveTopic, kafkaBrokers)
+	produceStart := time.Now()
+	require.NoError(t, produceMessages(ctx, kafkaBrokers, liveTopic, messages))
+	produceDuration := time.Since(produceStart)
+	produceRate := float64(totalMessages) / produceDuration.Seconds()
+
+	assert.GreaterOrEqual(t, produceRate, minProduceThroughput,
+		"producer throughput below %.0f msg/s (got %.0f)", minProduceThroughput, produceRate)
+
+	t.Logf("─── live load test summary ──────────────────────────")
+	t.Logf("  topic            : %s", liveTopic)
+	t.Logf("  total messages   : %d", totalMessages)
+	t.Logf("  produce duration : %v", produceDuration.Round(time.Millisecond))
+	t.Logf("  produce rate     : %.0f msg/s", produceRate)
+	t.Logf("  message mix:")
+	t.Logf("    background       : %d  (info/warn across 5 services)", nBackground)
+	t.Logf("    error_rate_spike : %d  errors from payment-service", nErrorSpike)
+	t.Logf("    latency_threshold: %d  requests to api-gateway (50%% slow)", nLatencyBreach)
+	t.Logf("    auth_failure_burst: %d  failures from 192.168.1.99", nAuthBurst)
+	t.Logf("    repeated_failure : %d  identical errors from order-service", nRepeatedFailure)
+	t.Logf("    off_hours_access : %d  /admin accesses at 02:00 UTC", nOffHours)
+	t.Logf("────────────────────────────────────────────────────")
+	t.Log("NOTE: the running app uses a 5m detection window with 2x warmup multiplier.")
+	t.Log("      Anomalies will appear after ~10 minutes if the app just started,")
+	t.Log("      or sooner if it has already warmed up.")
+	t.Log("      Query: curl http://localhost:8080/api/v1/anomalies")
+}
+
+// testHighLoadIsolated runs the full pipeline in-process against isolated
+// testcontainers. Uses short detection windows (10s) to complete quickly.
+func testHighLoadIsolated(t *testing.T) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
@@ -124,7 +183,7 @@ func TestHighLoad(t *testing.T) {
 	// 3. Wire Kafka consumer with dedicated topic + consumer group for isolation.
 	consumer, err := kafkaconsumer.New(config.KafkaConfig{
 		Brokers:       kafkaBrokers,
-		Topic:         loadTopic,
+		Topic:         isolatedTopic,
 		GroupID:       loadGroupID,
 		InitialOffset: "oldest",
 	}, logger)
@@ -176,7 +235,7 @@ func TestHighLoad(t *testing.T) {
 	// 8. Produce all messages concurrently; measure throughput.
 	t.Logf("producing %d messages with %d workers…", totalMessages, 8)
 	produceStart := time.Now()
-	require.NoError(t, produceMessages(ctx, kafkaBrokers, loadTopic, messages))
+	require.NoError(t, produceMessages(ctx, kafkaBrokers, isolatedTopic, messages))
 	produceDuration := time.Since(produceStart)
 	produceRate := float64(totalMessages) / produceDuration.Seconds()
 	t.Logf("produced %d messages in %v → %.0f msg/s", totalMessages, produceDuration.Round(time.Millisecond), produceRate)
@@ -214,11 +273,11 @@ func TestHighLoad(t *testing.T) {
 		"parse error rate %.2f%% exceeds 1%% threshold", parseErrorRate)
 
 	t.Logf("─── load test summary ───────────────────────────────")
-	t.Logf("  total messages   : %d", totalMessages)
-	t.Logf("  produce duration : %v", produceDuration.Round(time.Millisecond))
-	t.Logf("  produce rate     : %.0f msg/s", produceRate)
+	t.Logf("  total messages    : %d", totalMessages)
+	t.Logf("  produce duration  : %v", produceDuration.Round(time.Millisecond))
+	t.Logf("  produce rate      : %.0f msg/s", produceRate)
 	t.Logf("  pipeline processed: %d", processed.Load())
-	t.Logf("  parse errors     : %.0f (%.2f%%)", parseErrorDelta, parseErrorRate)
+	t.Logf("  parse errors      : %.0f (%.2f%%)", parseErrorDelta, parseErrorRate)
 	t.Logf("  anomaly rule deltas:")
 	for rule, delta := range firedRules {
 		t.Logf("    %-25s +%.0f", rule, delta)
