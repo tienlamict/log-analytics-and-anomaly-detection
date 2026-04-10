@@ -474,6 +474,10 @@ func produceMessages(ctx context.Context, brokers []string, topic string, payloa
 		kgo.DefaultProduceTopic(topic),
 		kgo.ProducerBatchMaxBytes(4*1024*1024),
 		kgo.ProducerBatchCompression(kgo.SnappyCompression()),
+		// Retry indefinitely on UNKNOWN_TOPIC_OR_PARTITION: the topic is
+		// auto-created on first produce; leader election can take a few seconds
+		// in a fresh container and the default 4 retries are not enough.
+		kgo.UnknownTopicRetries(-1),
 	)
 	if err != nil {
 		return fmt.Errorf("create kafka producer: %w", err)

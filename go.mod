@@ -10,7 +10,6 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.41.0
-	github.com/testcontainers/testcontainers-go/modules/elasticsearch v0.41.0
 	github.com/testcontainers/testcontainers-go/modules/kafka v0.41.0
 	github.com/twmb/franz-go v1.20.7
 	github.com/twmb/franz-go/plugin/kzap v1.1.2
