@@ -1,0 +1,320 @@
+{
+  "title": "Log Explorer",
+  "uid": "log-explorer",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "timezone": "browser",
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "type": "query",
+        "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
+        "query": "{\"find\": \"terms\", \"field\": \"service.keyword\"}",
+        "current": { "text": "All", "value": "$__all" },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "sort": 1
+      },
+      {
+        "name": "level",
+        "type": "custom",
+        "query": "error,warn,info,debug,unknown",
+        "current": { "text": "All", "value": "$__all" },
+        "includeAll": true,
+        "multi": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Log Volume",
+      "description": "Log count over time grouped by level",
+      "type": "barchart",
+      "gridPos": { "x": 0, "y": 0, "w": 16, "h": 7 },
+      "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
+          "query": "service.keyword:$service AND level.keyword:$level",
+          "metrics": [{ "type": "count", "id": "1" }],
+          "bucketAggs": [
+            {
+              "type": "terms",
+              "field": "level.keyword",
+              "id": "3",
+              "settings": { "order": "desc", "orderBy": "_count", "size": "10" }
+            },
+            {
+              "type": "date_histogram",
+              "field": "@timestamp",
+              "id": "2",
+              "settings": { "interval": "auto" }
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short"
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "error" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "warn" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "info" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "debug" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] }
+        ]
+      },
+      "options": {
+        "stacking": "normal"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Total Logs",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 3 },
+      "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
+          "query": "service.keyword:$service AND level.keyword:$level",
+          "metrics": [{ "type": "count", "id": "1" }],
+          "bucketAggs": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [{ "color": "blue", "value": null }]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Errors",
+      "type": "stat",
+      "gridPos": { "x": 20, "y": 0, "w": 4, "h": 3 },
+      "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
+          "query": "service.keyword:$service AND level.keyword:error",
+          "metrics": [{ "type": "count", "id": "1" }],
+          "bucketAggs": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 100 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Logs by Service",
+      "type": "piechart",
+      "gridPos": { "x": 16, "y": 3, "w": 4, "h": 4 },
+      "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
+          "query": "level.keyword:$level",
+          "metrics": [{ "type": "count", "id": "1" }],
+          "bucketAggs": [
+            {
+              "type": "terms",
+              "field": "service.keyword",
+              "id": "2",
+              "settings": { "order": "desc", "orderBy": "_count", "size": "10" }
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" } }
+      },
+      "options": {
+        "legend": { "displayMode": "hidden" },
+        "pieType": "donut"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Logs by Level",
+      "type": "piechart",
+      "gridPos": { "x": 20, "y": 3, "w": 4, "h": 4 },
+      "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
+          "query": "service.keyword:$service",
+          "metrics": [{ "type": "count", "id": "1" }],
+          "bucketAggs": [
+            {
+              "type": "terms",
+              "field": "level.keyword",
+              "id": "2",
+              "settings": { "order": "desc", "orderBy": "_count", "size": "10" }
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "error" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "warn" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "info" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "debug" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] }
+        ]
+      },
+      "options": {
+        "legend": { "displayMode": "hidden" },
+        "pieType": "donut"
+      }
+    },
+    {
+      "id": 6,
+      "title": "Log Stream",
+      "description": "Live log entries from Elasticsearch. Filter by service and level using the dropdowns above.",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 7, "w": 24, "h": 12 },
+      "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "elasticsearch", "uid": "elasticsearch-logs" },
+          "query": "service.keyword:$service AND level.keyword:$level",
+          "metrics": [{ "type": "logs", "id": "1" }],
+          "bucketAggs": []
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "id": 7,
+      "title": "Anomaly Timeline",
+      "description": "Detected anomalies over time grouped by rule",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 19, "w": 12, "h": 8 },
+      "datasource": { "type": "elasticsearch", "uid": "elasticsearch-anomalies" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "elasticsearch", "uid": "elasticsearch-anomalies" },
+          "query": "",
+          "metrics": [{ "type": "count", "id": "1" }],
+          "bucketAggs": [
+            {
+              "type": "terms",
+              "field": "rule_id.keyword",
+              "id": "3",
+              "settings": { "order": "desc", "orderBy": "_count", "size": "10" }
+            },
+            {
+              "type": "date_histogram",
+              "field": "detected_at",
+              "id": "2",
+              "settings": { "interval": "auto" }
+            }
+          ]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": { "mode": "normal" }
+          }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Anomalies",
+      "description": "Detected anomalies with details",
+      "type": "table",
+      "gridPos": { "x": 12, "y": 19, "w": 12, "h": 8 },
+      "datasource": { "type": "elasticsearch", "uid": "elasticsearch-anomalies" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "elasticsearch", "uid": "elasticsearch-anomalies" },
+          "query": "",
+          "metrics": [{ "type": "raw_data", "id": "1", "settings": { "size": "50" } }],
+          "bucketAggs": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "severity" },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-text" }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  { "type": "value", "options": { "critical": { "color": "red", "text": "CRITICAL" }, "high": { "color": "orange", "text": "HIGH" }, "medium": { "color": "yellow", "text": "MEDIUM" }, "low": { "color": "green", "text": "LOW" } } }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "detected_at" },
+            "properties": [{ "id": "unit", "value": "dateTimeAsIso" }]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "id": true, "evidence": true, "_id": true, "_type": true },
+            "indexByName": {
+              "detected_at": 0,
+              "severity": 1,
+              "rule_id": 2,
+              "service": 3,
+              "description": 4
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -64,6 +64,48 @@ services:
     entrypoint: ["/bin/bash", "-c", "kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic application-logs --partitions 3 --replication-factor 1"]
     restart: "no"
 
+  # ── Kibana ───────────────────────────────────────────────────────────────────
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.0.0
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    ports:
+      - "5601:5601"   # Web UI — open http://localhost:5601
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - XPACK_SECURITY_ENABLED=false
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5601/api/status | grep -q '\"available\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 90s
+
+  # ── Kibana init (auto-create data views for logs-* and anomalies) ─────────────
+  kibana-init:
+    image: curlimages/curl:latest
+    depends_on:
+      kibana:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        curl -sf -X POST "http://kibana:5601/api/data_views/data_view" \
+          -H "Content-Type: application/json" \
+          -H "kbn-xsrf: true" \
+          -d '{"data_view":{"title":"logs-*","name":"Application Logs","timeFieldName":"@timestamp"}}' || true
+        curl -sf -X POST "http://kibana:5601/api/data_views/data_view" \
+          -H "Content-Type: application/json" \
+          -H "kbn-xsrf: true" \
+          -d '{"data_view":{"title":"anomalies","name":"Anomalies","timeFieldName":"detected_at"}}' || true
+    restart: "no"
+
   # ── Prometheus ───────────────────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v3.4.0
@@ -98,7 +140,10 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
-      - prometheus
+      elasticsearch:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
 
   # ── Application ─────────────────────────────────────────────────────────────
   app:

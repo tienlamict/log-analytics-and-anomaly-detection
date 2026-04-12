@@ -11,24 +11,24 @@ type RawMessage struct {
 }
 
 type LogEntry struct {
-	ID        string
-	Timestamp time.Time
-	Level     string         // normalised: "error", "warn", "info", "debug", "unknown"
-	Service   string
-	Message   string
-	Fields    map[string]any
-	RawSource string
-	Source    RawMessage
+	ID        string         `json:"id,omitempty"`
+	Timestamp time.Time      `json:"@timestamp"`
+	Level     string         `json:"level"`     // normalised: "error", "warn", "info", "debug", "unknown"
+	Service   string         `json:"service"`
+	Message   string         `json:"message"`
+	Fields    map[string]any `json:"fields,omitempty"`
+	RawSource string         `json:"raw_source,omitempty"`
+	Source    RawMessage      `json:"-"`
 }
 
 type Anomaly struct {
-	ID          string
-	RuleID      string
-	Severity    string        // "low", "medium", "high", "critical"
-	Service     string
-	Description string
-	Evidence    []LogEntry
-	DetectedAt  time.Time
+	ID          string     `json:"id,omitempty"`
+	RuleID      string     `json:"rule_id"`
+	Severity    string     `json:"severity"`   // "low", "medium", "high", "critical"
+	Service     string     `json:"service"`
+	Description string     `json:"description"`
+	Evidence    []LogEntry `json:"evidence,omitempty"`
+	DetectedAt  time.Time  `json:"detected_at"`
 }
 
 type LogQuery struct {

@@ -310,9 +310,49 @@ curl "http://localhost:9200/logs-$(date +%Y.%m.%d)/_mapping?pretty"
 
 ---
 
-## 7. Check Grafana Dashboards
+## 7. View Logs in Kibana (ELK)
 
-Open **http://localhost:3000** (admin / admin) in your browser.
+Open **http://localhost:5601** in your browser — no login required.
+
+Two data views are auto-provisioned on first startup:
+
+| Data View | Index | Time field | Use for |
+|---|---|---|---|
+| **Application Logs** | `logs-*` | `@timestamp` | Browsing raw log entries |
+| **Anomalies** | `anomalies` | `detected_at` | Browsing detected anomalies |
+
+### Quick steps to explore logs:
+
+1. Go to **Discover** (left sidebar)
+2. Select data view **"Application Logs"** (top-left dropdown)
+3. Set time range to **Last 1 hour** (top-right)
+4. Use the search bar with KQL:
+   ```
+   level : "error"
+   service : "auth-service"
+   service : "payment-service" and level : "error"
+   fields.source_ip : "192.168.1.99"
+   ```
+5. Click any log row to expand and see all fields
+
+### Available fields per log entry:
+
+| Field | Type | Example |
+|---|---|---|
+| `@timestamp` | date | `2026-03-23T10:03:00Z` |
+| `level` | keyword | `error`, `warn`, `info`, `debug` |
+| `service` | keyword | `auth-service`, `payment-service` |
+| `message` | text | `login failed unauthorized` |
+| `fields.source_ip` | keyword | `192.168.1.99` |
+| `fields.username` | keyword | `attacker` |
+| `fields.latency_ms` | number | `800` |
+| `fields.path` | keyword | `/api/v1/login` |
+
+---
+
+## 7a. Check Grafana Dashboards (Metrics only)
+
+Open **http://localhost:3000** (admin / admin123) in your browser.
 
 The **Log Analytics & Anomaly Detection** dashboard is pre-provisioned with 7 panels:
 
@@ -434,7 +474,8 @@ After an anomaly fires for `(rule, service)`:
 |---|---|
 | REST API | http://localhost:8080 |
 | Prometheus metrics | http://localhost:2112/metrics |
-| Grafana dashboards | http://localhost:3000 (admin/admin) |
+| Kibana (log viewer) | http://localhost:5601 |
+| Grafana dashboards | http://localhost:3000 (admin/admin123) |
 | Prometheus UI | http://localhost:9090 |
 | Elasticsearch | http://localhost:9200 |
 | Kafka (external) | localhost:9092 |
