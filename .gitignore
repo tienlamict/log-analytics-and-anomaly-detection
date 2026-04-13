@@ -1,4 +1,6 @@
 .env
 *.log
+*.exe
 .claude/
+node_modules/
 optimization.md
