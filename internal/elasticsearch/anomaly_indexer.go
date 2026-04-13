@@ -121,12 +121,14 @@ func (ai *AnomalyIndexer) SearchAnomalies(ctx context.Context, q domain.AnomalyQ
 	}
 	from := (page - 1) * size
 
+	trackAll := types.TrackHits(true)
 	req := &search.Request{
 		Query: &types.Query{
 			Bool: &types.BoolQuery{Filter: filters},
 		},
-		From: &from,
-		Size: &size,
+		From:           &from,
+		Size:           &size,
+		TrackTotalHits: trackAll,
 	}
 
 	res, err := ai.client.Search().Index("anomalies").Request(req).Do(ctx)

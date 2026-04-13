@@ -122,12 +122,14 @@ func (li *LogIndexer) SearchLogs(ctx context.Context, q domain.LogQuery) ([]doma
 	}
 	from := (page - 1) * size
 
+	trackAll := types.TrackHits(true)
 	req := &search.Request{
 		Query: &types.Query{
 			Bool: &types.BoolQuery{Filter: filters},
 		},
-		From: &from,
-		Size: &size,
+		From:           &from,
+		Size:           &size,
+		TrackTotalHits: trackAll,
 	}
 
 	res, err := li.client.Search().Index("logs-*").Request(req).Do(ctx)
