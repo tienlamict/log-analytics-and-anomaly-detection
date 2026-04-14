@@ -1,5 +1,15 @@
-# Manual System Testing Guide
+#e2etest:
+# Default: 100 msg/s, 3 phút, tự verify
+go run ./cmd/e2etest
 
+# Tăng tải: 500 msg/s, 5 phút
+go run ./cmd/e2etest --rate 500 --duration 5m
+
+# Custom broker/API
+go run ./cmd/e2etest --broker localhost:9092 --api http://localhost:8080 --rate 200
+
+
+# Manual System Testing Guide
 ## 1. Start the Stack
 
 ```bash
