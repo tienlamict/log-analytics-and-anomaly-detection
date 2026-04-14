@@ -6,7 +6,7 @@ go run ./cmd/e2etest
 go run ./cmd/e2etest --rate 500 --duration 5m
 
 # Custom broker/API
-go run ./cmd/e2etest --broker localhost:9092 --api http://localhost:8080 --rate 200
+go run ./cmd/e2etest --rate 1000 --duration 20m --verify-timeout 5m
 
 
 # Manual System Testing Guide
