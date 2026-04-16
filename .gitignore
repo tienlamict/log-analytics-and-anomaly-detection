@@ -4,3 +4,4 @@
 .claude/
 node_modules/
 optimization.md
+testdata/e2e-logs.jsonl

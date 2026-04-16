@@ -25,6 +25,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"flag"
@@ -54,6 +55,7 @@ var (
 	flagRate          = flag.Int("rate", 100, "Target messages per second (approximate)")
 	flagDuration      = flag.Duration("duration", 3*time.Minute, "Produce phase duration (min 1m recommended)")
 	flagVerifyTimeout = flag.Duration("verify-timeout", 90*time.Second, "Max time to wait for pipeline drain")
+	flagFile          = flag.String("file", "", "Path to JSONL log file (replaces random generation)")
 )
 
 // ── log message (matches pipeline.Parse expectations) ─────────────────────────
@@ -299,6 +301,184 @@ func anomalyCount(base string, from time.Time, ruleType string) (int, error) {
 	return apiTotal(base, "/api/v1/anomalies", p)
 }
 
+// ── file-based produce ────────────────────────────────────────────────────────
+
+// loadLogsFromFile reads a JSONL file and returns raw JSON lines.
+// It also finds the min/max timestamps so we can rebase them to now.
+func loadLogsFromFile(path string) (lines [][]byte, minTS, maxTS time.Time, err error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, time.Time{}, time.Time{}, err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1<<20), 1<<20)
+
+	first := true
+	for scanner.Scan() {
+		raw := make([]byte, len(scanner.Bytes()))
+		copy(raw, scanner.Bytes())
+
+		// Parse timestamp for rebasing.
+		var partial struct {
+			Timestamp string `json:"timestamp"`
+		}
+		if err := json.Unmarshal(raw, &partial); err == nil && partial.Timestamp != "" {
+			if t, err := time.Parse(time.RFC3339, partial.Timestamp); err == nil {
+				if first || t.Before(minTS) {
+					minTS = t
+				}
+				if first || t.After(maxTS) {
+					maxTS = t
+				}
+				first = false
+			}
+		}
+		lines = append(lines, raw)
+	}
+	return lines, minTS, maxTS, scanner.Err()
+}
+
+// rebaseTimestamp rewrites the timestamp in a JSON log line so the overall
+// time span [minTS, maxTS] maps to [now, now+duration].
+func rebaseTimestamp(raw []byte, minTS time.Time, span, newSpan time.Duration, now time.Time) []byte {
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return raw
+	}
+	tsStr, _ := m["timestamp"].(string)
+	if tsStr == "" {
+		return raw
+	}
+	t, err := time.Parse(time.RFC3339, tsStr)
+	if err != nil {
+		return raw
+	}
+
+	// Map original offset within span to new offset.
+	var ratio float64
+	if span > 0 {
+		ratio = float64(t.Sub(minTS)) / float64(span)
+	}
+	newTS := now.Add(time.Duration(float64(newSpan) * ratio))
+	m["timestamp"] = newTS.Format(time.RFC3339)
+
+	out, err := json.Marshal(m)
+	if err != nil {
+		return raw
+	}
+	return out
+}
+
+func produceFromFile(
+	ctx context.Context,
+	kClient *kgo.Client,
+	filePath string,
+	rate int,
+	apiBase string,
+	testStart time.Time,
+	sent, dropped *atomic.Int64,
+	samples *[]sample,
+	sampleMu *sync.Mutex,
+) (totalSent, totalDropped int64, dur time.Duration, throughput float64) {
+	fmt.Printf("[3/5] Producing logs from file: %s\n", filePath)
+
+	lines, minTS, maxTS, err := loadLogsFromFile(filePath)
+	if err != nil {
+		log.Fatalf("load log file: %v", err)
+	}
+	origSpan := maxTS.Sub(minTS)
+	total := len(lines)
+	fmt.Printf("       Loaded %d logs (original span: %s)\n", total, origSpan.Truncate(time.Second))
+
+	// The new time span is: total/rate seconds (how long it takes to send at the given rate).
+	newSpan := time.Duration(float64(total)/float64(rate)) * time.Second
+	fmt.Printf("       Replay span: %s at ~%d msg/s\n\n", newSpan.Truncate(time.Second), rate)
+
+	produceStart := time.Now()
+
+	// Sampling goroutine.
+	produceDone := make(chan struct{})
+	go func() {
+		tick := time.NewTicker(10 * time.Second)
+		defer tick.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-produceDone:
+				return
+			case <-tick.C:
+				elapsed := time.Since(produceStart).Truncate(time.Second)
+				s := sent.Load()
+				indexed, _ := logCount(apiBase, testStart)
+				pct := float64(s) / float64(total) * 100
+
+				sampleMu.Lock()
+				*samples = append(*samples, sample{elapsed: elapsed, sent: s, indexed: indexed})
+				sampleMu.Unlock()
+
+				fmt.Printf("       [%5s] file-replay  sent=%-8d (%.0f%%)  indexed=%-8d  lag=%-6d\n",
+					elapsed, s, pct, indexed, s-int64(indexed))
+			}
+		}
+	}()
+
+	// Send logs at the target rate using a ticker.
+	now := time.Now().UTC()
+	batchSize := rate / 10 // send every 100ms
+	if batchSize < 1 {
+		batchSize = 1
+	}
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	idx := 0
+	for idx < total {
+		select {
+		case <-ctx.Done():
+			goto done
+		case <-ticker.C:
+		}
+
+		end := idx + batchSize
+		if end > total {
+			end = total
+		}
+		for ; idx < end; idx++ {
+			payload := rebaseTimestamp(lines[idx], minTS, origSpan, newSpan, now)
+			kClient.Produce(ctx, &kgo.Record{Value: payload},
+				func(_ *kgo.Record, err error) {
+					if err != nil {
+						dropped.Add(1)
+					} else {
+						sent.Add(1)
+					}
+				})
+		}
+	}
+
+done:
+	close(produceDone)
+
+	// Flush.
+	flushCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := kClient.Flush(flushCtx); err != nil {
+		log.Printf("flush warning: %v", err)
+	}
+
+	dur = time.Since(produceStart)
+	totalSent = sent.Load()
+	totalDropped = dropped.Load()
+	throughput = float64(totalSent) / dur.Seconds()
+
+	fmt.Printf("\n       Produce done: sent=%d  dropped=%d  rate=%.0f msg/s  elapsed=%s\n\n",
+		totalSent, totalDropped, throughput, dur.Truncate(time.Second))
+	return
+}
+
 // ── main ──────────────────────────────────────────────────────────────────────
 
 func main() {
@@ -315,8 +495,14 @@ func main() {
 	fmt.Println(strings.Repeat("=", 62))
 	fmt.Printf("  broker: %s   topic: %s\n", *flagBroker, *flagTopic)
 	fmt.Printf("  api:    %s\n", *flagAPI)
-	fmt.Printf("  rate:   %d msg/s   duration: %s   verify-timeout: %s\n\n",
-		*flagRate, *flagDuration, *flagVerifyTimeout)
+	if *flagFile != "" {
+		fmt.Printf("  mode:   file replay (%s)\n", *flagFile)
+		fmt.Printf("  rate:   %d msg/s   verify-timeout: %s\n\n", *flagRate, *flagVerifyTimeout)
+	} else {
+		fmt.Printf("  mode:   random generation\n")
+		fmt.Printf("  rate:   %d msg/s   duration: %s   verify-timeout: %s\n\n",
+			*flagRate, *flagDuration, *flagVerifyTimeout)
+	}
 
 	// ── Step 1: Health check ──────────────────────────────────────────────
 	fmt.Print("[1/5] Health check .......... ")
@@ -338,20 +524,6 @@ func main() {
 	fmt.Printf("logs=%d  anomalies=%d\n", baseLogs, baseAnoms)
 
 	// ── Step 3: Produce ───────────────────────────────────────────────────
-	phases := buildPhases(*flagDuration)
-
-	fmt.Println("[3/5] Producing logs to Kafka")
-	fmt.Println()
-	for _, p := range phases {
-		extra := ""
-		if p.expectAnomaly != "" {
-			extra = fmt.Sprintf("  -> %s", p.expectAnomaly)
-		}
-		fmt.Printf("       %5s - %-5s  %-18s  x%.1f%s\n",
-			p.start.Truncate(time.Second), p.end.Truncate(time.Second),
-			p.name, p.rateMultiplier, extra)
-	}
-	fmt.Println()
 
 	// Kafka producer client.
 	kClient, err := kgo.NewClient(
@@ -371,96 +543,139 @@ func main() {
 	var samples []sample
 	var sampleMu sync.Mutex
 
-	produceStart := time.Now()
-	deadline := produceStart.Add(*flagDuration)
+	var produceDur time.Duration
+	var totalSent, totalDropped int64
+	var produceRate float64
 
-	// Sampling goroutine: every 10s query API to track pipeline lag in real time.
-	samplerDone := make(chan struct{})
-	go func() {
-		defer close(samplerDone)
-		tick := time.NewTicker(10 * time.Second)
-		defer tick.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case t := <-tick.C:
-				if t.After(deadline) {
-					return
-				}
-				elapsed := time.Since(produceStart).Truncate(time.Second)
-				p := activePhase(phases, elapsed)
-				s := sent.Load()
-				indexed, _ := logCount(*flagAPI, testStart)
+	// Track which anomaly rules are expected to fire (used in report).
+	expectedAnomalies := map[string]bool{}
 
-				sampleMu.Lock()
-				samples = append(samples, sample{elapsed: elapsed, sent: s, indexed: indexed})
-				sampleMu.Unlock()
-
-				fmt.Printf("       [%5s] %-18s  sent=%-8d  indexed=%-8d  lag=%-6d\n",
-					elapsed, p.name, s, indexed, s-int64(indexed))
+	if *flagFile != "" {
+		// File-based mode expects all anomaly types embedded in the dataset.
+		for _, rt := range []string{
+			"error_rate_spike", "auth_failure_burst", "latency_threshold",
+			"repeated_failure", "off_hours_access",
+		} {
+			expectedAnomalies[rt] = true
+		}
+		// ── File-based produce ────────────────────────────────────────
+		totalSent, totalDropped, produceDur, produceRate = produceFromFile(
+			ctx, kClient, *flagFile, *flagRate, *flagAPI, testStart,
+			&sent, &dropped, &samples, &sampleMu,
+		)
+	} else {
+		// ── Random-generation produce ────────────────────────────────
+		phases := buildPhases(*flagDuration)
+		for _, p := range phases {
+			if p.expectAnomaly != "" {
+				expectedAnomalies[p.expectAnomaly] = true
 			}
 		}
-	}()
 
-	// Producer workers (same pattern as cmd/loadtest).
-	const (
-		tickInterval = 100 * time.Millisecond
-		numWorkers   = 4
-	)
+		fmt.Println("[3/5] Producing logs to Kafka")
+		fmt.Println()
+		for _, p := range phases {
+			extra := ""
+			if p.expectAnomaly != "" {
+				extra = fmt.Sprintf("  -> %s", p.expectAnomaly)
+			}
+			fmt.Printf("       %5s - %-5s  %-18s  x%.1f%s\n",
+				p.start.Truncate(time.Second), p.end.Truncate(time.Second),
+				p.name, p.rateMultiplier, extra)
+		}
+		fmt.Println()
 
-	var wg sync.WaitGroup
-	for w := 0; w < numWorkers; w++ {
-		wg.Add(1)
+		produceStart := time.Now()
+		deadline := produceStart.Add(*flagDuration)
+
+		// Sampling goroutine: every 10s query API to track pipeline lag.
+		samplerDone := make(chan struct{})
 		go func() {
-			defer wg.Done()
-			ticker := time.NewTicker(tickInterval)
-			defer ticker.Stop()
+			defer close(samplerDone)
+			tick := time.NewTicker(10 * time.Second)
+			defer tick.Stop()
 			for {
 				select {
 				case <-ctx.Done():
 					return
-				case t := <-ticker.C:
+				case t := <-tick.C:
 					if t.After(deadline) {
 						return
 					}
-					elapsed := time.Since(produceStart)
+					elapsed := time.Since(produceStart).Truncate(time.Second)
 					p := activePhase(phases, elapsed)
-					eff := float64(*flagRate) * p.rateMultiplier
-					batch := int(eff * tickInterval.Seconds() / float64(numWorkers))
-					if batch < 1 {
-						batch = 1
-					}
-					for i := 0; i < batch; i++ {
-						payload, _ := json.Marshal(p.generate())
-						kClient.Produce(ctx, &kgo.Record{Value: payload},
-							func(_ *kgo.Record, err error) {
-								if err != nil {
-									dropped.Add(1)
-								} else {
-									sent.Add(1)
-								}
-							})
-					}
+					s := sent.Load()
+					indexed, _ := logCount(*flagAPI, testStart)
+
+					sampleMu.Lock()
+					samples = append(samples, sample{elapsed: elapsed, sent: s, indexed: indexed})
+					sampleMu.Unlock()
+
+					fmt.Printf("       [%5s] %-18s  sent=%-8d  indexed=%-8d  lag=%-6d\n",
+						elapsed, p.name, s, indexed, s-int64(indexed))
 				}
 			}
 		}()
+
+		// Producer workers.
+		const (
+			tickInterval = 100 * time.Millisecond
+			numWorkers   = 4
+		)
+
+		var wg sync.WaitGroup
+		for w := 0; w < numWorkers; w++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				ticker := time.NewTicker(tickInterval)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case t := <-ticker.C:
+						if t.After(deadline) {
+							return
+						}
+						elapsed := time.Since(produceStart)
+						p := activePhase(phases, elapsed)
+						eff := float64(*flagRate) * p.rateMultiplier
+						batch := int(eff * tickInterval.Seconds() / float64(numWorkers))
+						if batch < 1 {
+							batch = 1
+						}
+						for i := 0; i < batch; i++ {
+							payload, _ := json.Marshal(p.generate())
+							kClient.Produce(ctx, &kgo.Record{Value: payload},
+								func(_ *kgo.Record, err error) {
+									if err != nil {
+										dropped.Add(1)
+									} else {
+										sent.Add(1)
+									}
+								})
+						}
+					}
+				}
+			}()
+		}
+
+		wg.Wait()
+		<-samplerDone
+
+		// Flush remaining buffered records.
+		flushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := kClient.Flush(flushCtx); err != nil {
+			log.Printf("flush warning: %v", err)
+		}
+
+		produceDur = time.Since(produceStart)
+		totalSent = sent.Load()
+		totalDropped = dropped.Load()
+		produceRate = float64(totalSent) / produceDur.Seconds()
 	}
-
-	wg.Wait()
-	<-samplerDone
-
-	// Flush remaining buffered records before measuring.
-	flushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := kClient.Flush(flushCtx); err != nil {
-		log.Printf("flush warning: %v", err)
-	}
-
-	produceDur := time.Since(produceStart)
-	totalSent := sent.Load()
-	totalDropped := dropped.Load()
-	produceRate := float64(totalSent) / produceDur.Seconds()
 
 	fmt.Printf("\n       Produce done: sent=%d  dropped=%d  rate=%.0f msg/s  elapsed=%s\n\n",
 		totalSent, totalDropped, produceRate, produceDur.Truncate(time.Second))
@@ -560,11 +775,8 @@ report:
 			mark = "+"
 		}
 		expected := ""
-		for _, p := range phases {
-			if p.expectAnomaly == rt {
-				expected = " (expected)"
-				break
-			}
+		if expectedAnomalies[rt] {
+			expected = " (expected)"
 		}
 		fmt.Printf("    [%s] %-25s count=%-3d%s\n", mark, rt, c, expected)
 	}
